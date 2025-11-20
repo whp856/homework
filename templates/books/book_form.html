@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - 图书管理{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2>{{ title }}</h2>
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="id_title">书名</label>
+                    {{ form.title }}
+                    {% if form.title.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.title.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_author">作者</label>
+                    {{ form.author }}
+                    {% if form.author.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.author.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_isbn">ISBN</label>
+                    {{ form.isbn }}
+                    {% if form.isbn.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.isbn.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_description">描述</label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.description.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_category">分类</label>
+                    {{ form.category }}
+                    {% if form.category.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.category.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_total_copies">总册数</label>
+                    {{ form.total_copies }}
+                    {% if form.total_copies.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.total_copies.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_available_copies">可用册数</label>
+                    {{ form.available_copies }}
+                    {% if form.available_copies.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.available_copies.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_cover_image">封面图片</label>
+                    {{ form.cover_image }}
+                    {% if form.cover_image.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.cover_image.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <a href="{% url 'books:book_list' %}" class="btn btn-secondary ml-2">取消</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

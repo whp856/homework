@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "WebSearch",
+      "WebFetch(domain:search.bilibili.com)",
+      "Bash(start https://github.com)",
+      "Bash(python manage.py migrate:*)",
+      "Bash(python manage.py collectstatic:*)",
+      "Bash(python:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

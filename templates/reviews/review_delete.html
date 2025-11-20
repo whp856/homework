@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}删除评论 - 评论管理{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card border-danger">
+        <div class="card-header bg-danger text-white">
+            <h2>确认删除</h2>
+        </div>
+        <div class="card-body">
+            <p class="card-text">您确定要删除这条评论吗？</p>
+            <div class="card mb-3">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ review.user.username }}</strong>
+                            <span class="mx-2">•</span>
+                            <span>{{ review.created_at|date:"Y-m-d H:i" }}</span>
+                        </div>
+                        <div>
+                            {% for i in "12345"|make_list %}
+                            {% if forloop.counter <= review.rating %}
+                            <span class="text-warning">★</span>
+                            {% else %}
+                            <span class="text-gray-300">☆</span>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">{{ review.content }}</p>
+                </div>
+            </div>
+            <p class="card-text text-warning">此操作无法撤销！</p>
+            
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">确认删除</button>
+                <a href="{% url 'reviews:book_reviews' review.book.id %}" class="btn btn-secondary ml-2">取消</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

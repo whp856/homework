@@ -1,0 +1,97 @@
+/* 自定义样式 */
+.book-card {
+    transition: transform 0.2s;
+}
+
+.book-card:hover {
+    transform: translateY(-5px);
+}
+
+.book-cover {
+    height: 200px;
+    object-fit: cover;
+}
+
+.rating-stars {
+    color: #ffc107;
+}
+
+.footer {
+    margin-top: auto;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.card-img-top {
+    height: 300px;
+    object-fit: cover;
+}
+
+.btn-action {
+    margin: 0 2px;
+}
+
+.table th {
+    background-color: #f8f9fa;
+}
+
+.status-badge {
+    font-size: 0.875em;
+}
+
+.borrowed-status {
+    color: #dc3545;
+}
+
+.available-status {
+    color: #198754;
+}
+
+.overdue-status {
+    color: #fd7e14;
+}
+
+.pagination {
+    justify-content: center;
+}
+
+.comment-text {
+    white-space: pre-wrap;
+}
+
+.search-form {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.hero-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 80px 0;
+}
+
+.hero-section h1 {
+    font-size: 3rem;
+    font-weight: bold;
+}
+
+.stats-card {
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    text-align: center;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.stats-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #007bff;
+}
+
+.stats-label {
+    color: #6c757d;
+    margin-top: 10px;
+}

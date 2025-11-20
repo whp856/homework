@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - 分类管理{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2>{{ title }}</h2>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="id_name">分类名称</label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.name.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_description">描述</label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.description.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <a href="{% url 'categories:category_list' %}" class="btn btn-secondary ml-2">取消</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

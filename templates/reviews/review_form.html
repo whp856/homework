@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - 评论管理{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2>{{ title }}</h2>
+        </div>
+        <div class="card-body">
+            <p><strong>图书：</strong>{{ book.title }}</p>
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="id_rating">评分</label>
+                    {{ form.rating }}
+                    {% if form.rating.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.rating.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_content">评论内容</label>
+                    {{ form.content }}
+                    {% if form.content.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.content.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <a href="{% url 'reviews:book_reviews' book.id %}" class="btn btn-secondary ml-2">取消</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

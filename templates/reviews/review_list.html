@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block title %}所有评论 - 评论管理{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2>所有评论</h2>
+        </div>
+        <div class="card-body">
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}" role="alert">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            
+            {% if page_obj %}
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>用户</th>
+                        <th>图书名称</th>
+                        <th>评分</th>
+                        <th>评论内容</th>
+                        <th>创建时间</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for review in page_obj %}
+                    <tr>
+                        <td>{{ review.user.username }}</td>
+                        <td><a href="{% url 'books:book_detail' review.book.id %}">{{ review.book.title }}</a></td>
+                        <td>{{ review.rating }} 星</td>
+                        <td>{{ review.content|truncatechars:50 }}</td>
+                        <td>{{ review.created_at|date:"Y-m-d H:i" }}</td>
+                        <td>
+                            {% if review.is_approved %}
+                            <span class="badge badge-success">已审核</span>
+                            {% else %}
+                            <span class="badge badge-warning">待审核</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <form method="post" action="{% url 'reviews:approve_review' review.id %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn {% if review.is_approved %}btn-warning{% else %}btn-success{% endif %} btn-sm">
+                                        {% if review.is_approved %}取消审核{% else %}审核通过{% endif %}
+                                    </button>
+                                </form>
+                                <a href="{% url 'reviews:delete_review_admin' review.id %}" class="btn btn-danger btn-sm">删除</a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <!-- 分页控件 -->
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% else %}
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                    {% endif %}
+                    {% endfor %}
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% else %}
+            <div class="alert alert-info" role="alert">
+                暂无评论
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}删除图书 - 图书管理{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card border-danger">
+        <div class="card-header bg-danger text-white">
+            <h2>确认删除</h2>
+        </div>
+        <div class="card-body">
+            <p class="card-text">您确定要删除图书 "{{ book.title }}" 吗？</p>
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="card-title">{{ book.title }}</h5>
+                    <p class="card-subtitle text-muted">{{ book.author }}</p>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">{{ book.description|truncatechars:200 }}</p>
+                    <p class="card-text"><strong>ISBN:</strong> {{ book.isbn }}</p>
+                    <p class="card-text"><strong>总册数:</strong> {{ book.total_copies }}</p>
+                    <p class="card-text"><strong>可用册数:</strong> {{ book.available_copies }}</p>
+                </div>
+            </div>
+            <p class="card-text text-warning">此操作无法撤销！</p>
+            
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">确认删除</button>
+                <a href="{% url 'books:book_list' %}" class="btn btn-secondary ml-2">取消</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

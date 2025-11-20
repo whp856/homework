@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}所有借阅记录 - 图书管理系统{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h2>所有借阅记录</h2>
+            <a href="{% url 'borrowing:create_record' %}" class="btn btn-secondary">创建借阅记录</a>
+        </div>
+        <div class="card-body">
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}" role="alert">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            
+            {% if page_obj %}
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>用户</th>
+                        <th>图书名称</th>
+                        <th>借阅日期</th>
+                        <th>应还日期</th>
+                        <th>归还日期</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in page_obj %}
+                    <tr>
+                        <td>{{ record.user.username }}</td>
+                        <td><a href="{% url 'books:book_detail' record.book.id %}">{{ record.book.title }}</a></td>
+                        <td>{{ record.borrow_date|date:"Y-m-d" }}</td>
+                        <td class="{% if record.is_overdue and record.status == 'borrowed' %}text-danger{% endif %}">
+                            {{ record.due_date|date:"Y-m-d" }}
+                            {% if record.is_overdue and record.status == 'borrowed' %}
+                            (已逾期)
+                            {% endif %}
+                        </td>
+                        <td>{% if record.return_date %}{{ record.return_date|date:"Y-m-d" }}{% else %}-{% endif %}</td>
+                        <td>
+                            {% if record.status == 'borrowed' %}已借阅{% endif %}
+                            {% if record.status == 'returned' %}已归还{% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="{% url 'borrowing:update_record' record.id %}" class="btn btn-primary btn-sm">编辑</a>
+                                <a href="{% url 'borrowing:delete_record' record.id %}" class="btn btn-danger btn-sm">删除</a>
+                                {% if record.status == 'borrowed' %}
+                                <form method="post" action="{% url 'borrowing:return_book' record.id %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success btn-sm">归还</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <!-- 分页控件 -->
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% else %}
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                    {% endif %}
+                    {% endfor %}
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% else %}
+            <div class="alert alert-info" role="alert">
+                暂无借阅记录
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

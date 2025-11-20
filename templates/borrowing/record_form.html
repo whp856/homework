@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - 借阅管理{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2>{{ title }}</h2>
+        </div>
+        <div class="card-body">
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}" role="alert">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="id_user">用户</label>
+                    {{ form.user }}
+                    {% if form.user.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.user.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_book">图书</label>
+                    {{ form.book }}
+                    {% if form.book.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.book.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_borrow_date">借阅日期</label>
+                    {{ form.borrow_date }}
+                    {% if form.borrow_date.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.borrow_date.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_due_date">应还日期</label>
+                    {{ form.due_date }}
+                    {% if form.due_date.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.due_date.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_status">状态</label>
+                    {{ form.status }}
+                    {% if form.status.errors %}
+                    <div class="text-danger mt-1">
+                        {% for error in form.status.errors %}
+                        <small>{{ error }}</small><br>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <a href="{% url 'borrowing:record_list' %}" class="btn btn-secondary ml-2">取消</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
