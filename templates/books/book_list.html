@@ -4,7 +4,14 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>图书列表</h2>
+    <div class="d-flex justify-content-between align-items-center">
+        <h2>图书列表</h2>
+        {% if user.is_authenticated and user.is_admin %}
+        <a href="{% url 'books:book_create' %}" class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> 添加图书
+        </a>
+        {% endif %}
+    </div>
     
     <!-- 搜索和筛选表单 -->
     <div class="card mb-4">
@@ -51,7 +58,19 @@
                         <span class="badge badge-danger">已借出</span>
                         {% endif %}
                     </p>
-                    <a href="{% url 'books:book_detail' book.id %}" class="btn btn-info btn-block">查看详情</a>
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'books:book_detail' book.id %}" class="btn btn-info">查看详情</a>
+                        {% if user.is_authenticated and user.is_admin %}
+                        <div class="btn-group" role="group">
+                            <a href="{% url 'books:book_update' book.id %}" class="btn btn-outline-warning btn-sm">
+                                <i class="bi bi-pencil"></i> 编辑
+                            </a>
+                            <a href="{% url 'books:book_delete' book.id %}" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-trash"></i> 删除
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>

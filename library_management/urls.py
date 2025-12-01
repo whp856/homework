@@ -3,6 +3,12 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from books import views as books_views  # 添加这行导入
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
+
+def welcome(request):
+    """公开的欢迎页面，展示系统介绍"""
+    return render(request, 'welcome.html')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -11,7 +17,8 @@ urlpatterns = [
     path('categories/', include('categories.urls')),
     path('borrowing/', include('borrowing.urls')),
     path('reviews/', include('reviews.urls')),
-    path('', books_views.home, name='home'),  # 修改这行为使用导入的视图
+    path('', welcome, name='welcome'),  # 新的欢迎页面
+    path('home/', login_required(books_views.home), name='home'),  # 需要登录的主页
 ]
 
 if settings.DEBUG:

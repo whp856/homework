@@ -56,6 +56,7 @@ def edit_profile(request):
     return render(request, 'accounts/edit_profile.html', {'form': form})
 
 from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth import logout
 
 def is_admin(user):
     return user.is_authenticated and user.is_admin
@@ -73,6 +74,17 @@ def user_detail(request, user_id):
         'user_obj': user,
         'borrow_records': borrow_records
     })
+
+def logout_view(request):
+    """自定义登出视图，支持GET请求"""
+    if request.method == 'GET' or request.method == 'POST':
+        logout(request)
+        messages.success(request, '您已成功登出！')
+        return redirect('welcome')
+    else:
+        # 如果不是GET或POST请求，显示错误
+        messages.error(request, '登出请求方法不被允许。')
+        return redirect('home')
 
 @user_passes_test(is_admin)
 def toggle_user_status(request, user_id):

@@ -3,13 +3,19 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.contrib.auth.decorators import user_passes_test
 from accounts.models import CustomUser
 from .models import Book
 from .forms import BookForm
 
 def is_admin(user):
     return user.is_authenticated and user.is_admin
+
+def check_admin_permission(request, error_message="您没有权限执行此操作，只有管理员可以操作。"):
+    """检查管理员权限的工具函数"""
+    if not request.user.is_admin:
+        messages.error(request, error_message)
+        return False
+    return True
 
 def home(request):
     recent_books = Book.objects.all().order_by('-created_at')[:6]
@@ -71,8 +77,12 @@ def book_detail(request, book_id):
         'user_borrow_records': user_borrow_records
     })
 
-@user_passes_test(is_admin)
+@login_required
 def book_create(request):
+    # 检查管理员权限
+    if not check_admin_permission(request, '您没有权限添加图书，只有管理员可以执行此操作。'):
+        return redirect('books:book_list')
+
     if request.method == 'POST':
         form = BookForm(request.POST, request.FILES)
         if form.is_valid():
@@ -86,25 +96,43 @@ def book_create(request):
         'title': '添加图书'
     })
 
-@user_passes_test(is_admin)
+@login_required
 def book_update(request, book_id):
+    # 检查管理员权限
+    if not check_admin_permission(request, '您没有权限编辑图书，只有管理员可以执行此操作。'):
+        return redirect('books:book_detail', book_id=book_id)
+
     book = get_object_or_404(Book, id=book_id)
+
     if request.method == 'POST':
         form = BookForm(request.POST, request.FILES, instance=book)
         if form.is_valid():
-            form.save()
-            messages.success(request, '图书更新成功！')
-            return redirect('books:book_detail', book_id=book.id)
+            try:
+                updated_book = form.save()
+                messages.success(request, '图书更新成功！')
+                return redirect('books:book_detail', book_id=updated_book.id)
+            except Exception as e:
+                messages.error(request, f'保存失败: {e}')
+        else:
+            # 显示表单验证错误
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{form.fields[field].label}: {error}')
     else:
         form = BookForm(instance=book)
+
     return render(request, 'books/book_form.html', {
         'form': form,
         'title': '编辑图书',
         'book': book
     })
 
-@user_passes_test(is_admin)
+@login_required
 def book_delete(request, book_id):
+    # 检查管理员权限
+    if not check_admin_permission(request, '您没有权限删除图书，只有管理员可以执行此操作。'):
+        return redirect('books:book_detail', book_id=book_id)
+
     book = get_object_or_404(Book, id=book_id)
     if request.method == 'POST':
         book.delete()
