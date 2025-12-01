@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}欢迎使用图书管理系统{% endblock %}
+
+{% block content %}
+<div class="jumbotron bg-primary text-white rounded p-5 mb-5">
+    <div class="container text-center">
+        <h1 class="display-4">📚 欢迎使用图书管理系统</h1>
+        <p class="lead">一个现代化的图书借阅管理平台，为您提供便捷的图书服务</p>
+        <hr class="my-4 border-white">
+        <p>请登录或注册以开始使用系统功能</p>
+        <a class="btn btn-light btn-lg me-3" href="{% url 'accounts:login' %}" role="button">
+            <i class="bi bi-box-arrow-in-right"></i> 登录
+        </a>
+        <a class="btn btn-outline-light btn-lg" href="{% url 'accounts:register' %}" role="button">
+            <i class="bi bi-person-plus"></i> 注册
+        </a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-book-half text-primary" style="font-size: 3rem;"></i>
+                    <h5 class="card-title mt-3">丰富的图书资源</h5>
+                    <p class="card-text">浏览和搜索各种类型的图书，找到您感兴趣的读物</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-arrow-left-right text-success" style="font-size: 3rem;"></i>
+                    <h5 class="card-title mt-3">便捷的借阅服务</h5>
+                    <p class="card-text">在线借阅图书，管理您的借阅记录，及时归还图书</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="bi bi-star text-warning" style="font-size: 3rem;"></i>
+                    <h5 class="card-title mt-3">用户评价系统</h5>
+                    <p class="card-text">查看和发表图书评价，分享您的阅读体验</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card bg-light">
+                <div class="card-body">
+                    <h5 class="card-title text-center">系统特色功能</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li><i class="bi bi-check-circle text-success"></i> 图书分类管理</li>
+                                <li><i class="bi bi-check-circle text-success"></i> 智能搜索功能</li>
+                                <li><i class="bi bi-check-circle text-success"></i> 个人借阅记录</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul class="list-unstyled">
+                                <li><i class="bi bi-check-circle text-success"></i> 在线续借服务</li>
+                                <li><i class="bi bi-check-circle text-success"></i> 用户评论互动</li>
+                                <li><i class="bi bi-check-circle text-success"></i> 管理员后台</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
