@@ -1,4 +1,5 @@
-from django.db import models
+from django.db import models, transaction
+from django.db.models import F
 from django.contrib.auth import get_user_model
 from books.models import Book
 
@@ -41,12 +42,34 @@ class BorrowRecord(models.Model):
             return (timezone.now() - self.due_date).days
         return 0
 
+    @transaction.atomic
     def return_book(self):
-        if self.status == 'borrowed':
+        """原子性地归还图书，更新借阅记录和图书状态"""
+        if self.status != 'borrowed':
+            return False
+
+        try:
             from django.utils import timezone
-            self.return_date = timezone.now()
-            self.status = 'returned'
-            self.save()
-            self.book.return_book()
+
+            # 使用select_for_update锁定借阅记录和图书记录
+            record = BorrowRecord.objects.select_for_update().get(id=self.id)
+            book = Book.objects.select_for_update().get(id=record.book.id)
+
+            # 更新借阅记录状态
+            BorrowRecord.objects.filter(id=self.id).update(
+                return_date=timezone.now(),
+                status='returned'
+            )
+
+            # 更新图书状态
+            if not book.return_book():
+                # 如果图书状态更新失败，回滚借阅记录
+                BorrowRecord.objects.filter(id=self.id).update(
+                    return_date=None,
+                    status='borrowed'
+                )
+                return False
+
             return True
-        return False
+        except Exception:
+            return False

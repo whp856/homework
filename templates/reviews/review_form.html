@@ -24,8 +24,8 @@
                     {% endif %}
                 </div>
                 <div class="form-group">
-                    <label for="id_content">评论内容</label>
-                    {{ form.content }}
+                    <label for="id_comment">评论内容</label>
+                    {{ form.comment }}
                     {% if form.content.errors %}
                     <div class="text-danger mt-1">
                         {% for error in form.content.errors %}
