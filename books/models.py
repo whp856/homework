@@ -1,4 +1,5 @@
-from django.db import models
+from django.db import models, transaction
+from django.db.models import F
 from categories.models import Category
 
 class Book(models.Model):
@@ -42,20 +43,52 @@ class Book(models.Model):
     def can_borrow(self):
         return self.is_available
 
+    @transaction.atomic
     def borrow_book(self):
-        if self.can_borrow():
-            self.available_copies -= 1
-            if self.available_copies == 0:
-                self.status = 'borrowed'
-            self.save()
-            return True
-        return False
+        """原子性地借阅图书，防止并发问题"""
+        try:
+            # 使用select_for_update来锁定记录，防止并发借阅
+            book = Book.objects.select_for_update().filter(id=self.id).first()
 
-    def return_book(self):
-        if self.available_copies < self.total_copies:
-            self.available_copies += 1
-            if self.available_copies > 0:
-                self.status = 'available'
-            self.save()
+            if book.available_copies <= 0:
+                return False
+
+            # 使用F()原子性更新
+            Book.objects.filter(id=self.id).update(
+                available_copies=F('available_copies') - 1
+            )
+
+            # 更新状态
+            updated_book = Book.objects.get(id=self.id)
+            if updated_book.available_copies == 0:
+                updated_book.status = 'borrowed'
+                updated_book.save()
+
             return True
-        return False
+        except Exception:
+            return False
+
+    @transaction.atomic
+    def return_book(self):
+        """原子性地归还图书，防止并发问题"""
+        try:
+            # 使用select_for_update来锁定记录，防止并发归还
+            book = Book.objects.select_for_update().filter(id=self.id).first()
+
+            if book.available_copies >= book.total_copies:
+                return False
+
+            # 使用F()原子性更新
+            Book.objects.filter(id=self.id).update(
+                available_copies=F('available_copies') + 1
+            )
+
+            # 更新状态
+            updated_book = Book.objects.get(id=self.id)
+            if updated_book.available_copies > 0:
+                updated_book.status = 'available'
+                updated_book.save()
+
+            return True
+        except Exception:
+            return False

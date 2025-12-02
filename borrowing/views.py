@@ -5,6 +5,8 @@ from django.core.paginator import Paginator
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth.decorators import user_passes_test
+from django.db import transaction
+from django.db.models import F
 from accounts.models import CustomUser
 from books.models import Book  # 将Book模型导入移到开头
 from .models import BorrowRecord
@@ -30,50 +32,130 @@ def borrow_record_list(request):
     return render(request, 'borrowing/record_list.html', {'page_obj': page_obj})
 
 @login_required
+@transaction.atomic
 def borrow_book(request, book_id):
-    book = get_object_or_404(Book, id=book_id)
+    """处理借阅图书请求，使用事务确保原子性"""
+    try:
+        # 使用select_for_update锁定图书记录，防止并发借阅
+        book = Book.objects.select_for_update().get(id=book_id)
 
-    if not book.can_borrow():
-        messages.error(request, '该图书当前不可借阅。')
+        # 检查图书是否可借阅
+        if not book.can_borrow():
+            messages.error(request, f'该图书当前不可借阅。剩余可借：{book.available_copies}册')
+            return redirect('books:book_detail', book_id=book.id)
+
+        # 检查用户是否已经借阅了这本书（包括管理员）
+        existing_record = BorrowRecord.objects.filter(
+            user=request.user,
+            book=book,
+            status='borrowed'
+        ).first()
+
+        if existing_record:
+            messages.error(request, '您已经借阅了这本书，请勿重复借阅。')
+            return redirect('books:book_detail', book_id=book.id)
+
+        # 计算应还时间（管理员可以借阅更长时间）
+        if request.user.is_admin:
+            due_date = timezone.now() + timedelta(days=60)  # 管理员60天
+        else:
+            due_date = timezone.now() + timedelta(days=30)  # 普通用户30天
+
+        # 创建借阅记录
+        borrow_record = BorrowRecord.objects.create(
+            user=request.user,
+            book=book,
+            due_date=due_date,
+            status='borrowed'
+        )
+
+        # 原子性地更新图书状态
+        if not book.borrow_book():
+            # 如果更新失败，删除借阅记录
+            borrow_record.delete()
+            messages.error(request, '借阅失败，请重试。')
+            return redirect('books:book_detail', book_id=book.id)
+
+        # 记录借阅日志（可选）
+        if request.user.is_admin:
+            messages.success(request, f'管理员借阅《{book.title}》成功，请于{borrow_record.due_date.strftime("%Y-%m-%d")}前归还。')
+        else:
+            messages.success(request, f'成功借阅《{book.title}》，请于{borrow_record.due_date.strftime("%Y-%m-%d")}前归还。')
+
+        return redirect('borrowing:my_records')
+
+    except Book.DoesNotExist:
+        messages.error(request, '图书不存在。')
+        return redirect('books:book_list')
+    except Exception as e:
+        messages.error(request, f'借阅过程中出现错误：{str(e)}')
         return redirect('books:book_detail', book_id=book.id)
-
-    existing_record = BorrowRecord.objects.filter(
-        user=request.user,
-        book=book,
-        status='borrowed'
-    ).first()
-
-    if existing_record:
-        messages.error(request, '您已经借阅了这本书。')
-        return redirect('books:book_detail', book_id=book.id)
-
-    borrow_record = BorrowRecord.objects.create(
-        user=request.user,
-        book=book,
-        due_date=timezone.now() + timedelta(days=30)
-    )
-
-    book.borrow_book()
-    messages.success(request, f'成功借阅《{book.title}》，请于{borrow_record.due_date.strftime("%Y-%m-%d")}前归还。')
-    return redirect('borrowing:my_records')
 
 @login_required
+@transaction.atomic
 def return_book(request, record_id):
-    record = get_object_or_404(BorrowRecord, id=record_id)
+    """处理归还图书请求，使用事务确保原子性"""
+    try:
+        # 使用select_for_update锁定借阅记录，防止并发归还
+        record = BorrowRecord.objects.select_for_update().get(id=record_id)
 
-    if record.user != request.user and not request.user.is_admin:
-        messages.error(request, '您没有权限归还这本书。')
-        return redirect('borrowing:my_records')
+        # 权限检查：用户只能归还自己的书，管理员可以归还任何书
+        if record.user != request.user and not request.user.is_admin:
+            messages.error(request, '您没有权限归还这本书。')
+            return redirect('borrowing:my_records')
 
-    if record.return_book():
-        messages.success(request, f'《{record.book.title}》归还成功。')
-    else:
-        messages.error(request, '归还失败，请检查图书状态。')
+        # 检查图书状态
+        if record.status != 'borrowed':
+            messages.warning(request, f'该借阅记录状态为"{record.get_status_display()}"，无需归还。')
+            if request.user.is_admin:
+                return redirect('borrowing:record_list')
+            else:
+                return redirect('borrowing:my_records')
 
-    if request.user.is_admin:
-        return redirect('borrowing:record_list')
-    else:
-        return redirect('borrowing:my_records')
+        # 使用select_for_update锁定图书记录
+        book = Book.objects.select_for_update().get(id=record.book.id)
+
+        # 原子性地归还图书
+        if not record.return_book():
+            messages.error(request, '归还失败，请检查图书状态。')
+            if request.user.is_admin:
+                return redirect('borrowing:record_list')
+            else:
+                return redirect('borrowing:my_records')
+
+        # 根据用户角色显示不同的成功消息
+        if request.user.is_admin:
+            if record.user != request.user:
+                messages.success(request, f'已为用户{record.user.username}归还《{record.book.title}》。')
+            else:
+                messages.success(request, f'管理员归还《{record.book.title}》成功。')
+        else:
+            messages.success(request, f'《{record.book.title}》归还成功。')
+
+        # 重定向到相应的页面
+        if request.user.is_admin:
+            return redirect('borrowing:record_list')
+        else:
+            return redirect('borrowing:my_records')
+
+    except BorrowRecord.DoesNotExist:
+        messages.error(request, '借阅记录不存在。')
+        if request.user.is_admin:
+            return redirect('borrowing:record_list')
+        else:
+            return redirect('borrowing:my_records')
+    except Book.DoesNotExist:
+        messages.error(request, '图书不存在。')
+        if request.user.is_admin:
+            return redirect('borrowing:record_list')
+        else:
+            return redirect('borrowing:my_records')
+    except Exception as e:
+        messages.error(request, f'归还过程中出现错误：{str(e)}')
+        if request.user.is_admin:
+            return redirect('borrowing:record_list')
+        else:
+            return redirect('borrowing:my_records')
 
 @user_passes_test(is_admin)
 def create_borrow_record(request):

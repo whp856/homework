@@ -22,9 +22,10 @@
             <div class="mt-4">
                 <p><strong>分类:</strong> {{ book.category.name }}</p>
                 <p><strong>出版日期:</strong> {{ book.publication_date }}</p>
-                <p><strong>库存数量:</strong> {{ book.quantity }}</p>
-                <p><strong>状态:</strong> 
-                    {% if book.quantity > 0 %}
+                <p><strong>总册数:</strong> {{ book.total_copies }}</p>
+                <p><strong>可借册数:</strong> {{ book.available_copies }}</p>
+                <p><strong>状态:</strong>
+                    {% if book.is_available %}
                     <span class="text-success">可借阅</span>
                     {% else %}
                     <span class="text-danger">已借出</span>
@@ -35,7 +36,7 @@
             <!-- 操作按钮 -->
             <div class="mt-4">
                 {% if user.is_authenticated %}
-                    {% if book.quantity > 0 %}
+                    {% if book.is_available %}
                     <a href="{% url 'borrowing:borrow_book' book.id %}" class="btn btn-primary">借阅本书</a>
                     {% else %}
                     <button class="btn btn-secondary" disabled>当前不可借阅</button>
