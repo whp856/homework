@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import user_passes_test
 from accounts.models import CustomUser
 from .models import Category
 from .forms import CategoryForm
-from library_management.cache import cache
+from library_management.cache import cache, CACHE_KEY_CATEGORY_LIST
 
 def is_admin(user):
     return user.is_authenticated and user.is_admin
@@ -15,11 +15,11 @@ def is_admin(user):
 def category_list(request):
     # 使用缓存获取分类列表，设置30分钟过期
     categories = cache.get_or_set(
-        'cached_category_list',
+        CACHE_KEY_CATEGORY_LIST,
         lambda: list(Category.objects.all().order_by('name')),
         timeout=1800  # 30分钟
     )
-    
+
     paginator = Paginator(categories, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
@@ -41,8 +41,7 @@ def category_create(request):
         if form.is_valid():
             form.save()
             # 清除缓存
-            cache.delete('cached_category_list')
-            cache.delete('categories')
+            cache.delete(CACHE_KEY_CATEGORY_LIST)
             messages.success(request, '分类创建成功！')
             return redirect('categories:category_list')
     else:
@@ -60,8 +59,7 @@ def category_update(request, category_id):
         if form.is_valid():
             form.save()
             # 清除缓存
-            cache.delete('cached_category_list')
-            cache.delete('categories')
+            cache.delete(CACHE_KEY_CATEGORY_LIST)
             messages.success(request, '分类更新成功！')
             return redirect('categories:category_list')
     else:

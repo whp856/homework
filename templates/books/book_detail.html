@@ -8,9 +8,15 @@
             <p class="text-muted">作者: {{ book.author }}</p>
             <p class="text-muted">ISBN: {{ book.isbn }}</p>
             
-            {% if book.cover_image %}
+            {% if book.cover_image_url %}
             <div class="mb-4">
-                <img src="{{ book.cover_image.url }}" alt="{{ book.title }}" class="img-fluid" style="max-height: 300px;">
+                <!-- 使用懒加载 -->
+                <div class="skeleton-loading" style="height: 300px; border-radius: 4px;"></div>
+                <img data-src="{{ book.cover_image_url }}" alt="{{ book.title }}" class="img-fluid" style="max-height: 300px; display: none;" loading="lazy">
+            </div>
+            {% else %}
+            <div class="mb-4 bg-light text-center py-4" style="height: 300px; border-radius: 4px;">
+                <i class="fas fa-book-open fa-5x text-muted"></i>
             </div>
             {% endif %}
             
@@ -27,21 +33,36 @@
                 <p><strong>状态:</strong>
                     {% if book.is_available %}
                     <span class="text-success">可借阅</span>
+                    {% if book.available_copies < book.total_copies %}
+                    <span class="text-muted ml-2">(剩余{{ book.available_copies }}册)</span>
+                    {% endif %}
                     {% else %}
                     <span class="text-danger">已借出</span>
                     {% endif %}
                 </p>
-            </div>
-            
-            <!-- 操作按钮 -->
-            <div class="mt-4">
+                
+                <!-- 修改借阅按钮部分，确保登录用户也能看到查看评论按钮 -->
                 {% if user.is_authenticated %}
                     {% if book.is_available %}
-                    <a href="{% url 'borrowing:borrow_book' book.id %}" class="btn btn-primary">借阅本书</a>
+                    <form method="post" action="{% url 'borrowing:borrow_book' book.id %}">
+                        {% csrf_token %}
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="return_to_detail"
+                                   name="redirect_to" value="book_detail">
+                            <label class="form-check-label" for="return_to_detail">借阅后返回图书详情页</label>
+                        </div>
+                        <button type="submit" class="btn btn-primary">借阅本书</button>
+                        <!-- 添加查看评论按钮 -->
+                        <a href="{% url 'reviews:book_reviews' book.id %}" class="btn btn-secondary ml-2">查看评论</a>
+                        {% if book.available_copies < book.total_copies %}
+                        <span class="text-muted ml-2">(还剩{{ book.available_copies }}册可借)</span>
+                        {% endif %}
+                    </form>
                     {% else %}
                     <button class="btn btn-secondary" disabled>当前不可借阅</button>
-                    {% endif %}
+                    <!-- 添加查看评论按钮 -->
                     <a href="{% url 'reviews:book_reviews' book.id %}" class="btn btn-secondary ml-2">查看评论</a>
+                    {% endif %}
                 {% else %}
                 <a href="{% url 'accounts:login' %}" class="btn btn-primary">登录后借阅</a>
                 <a href="{% url 'reviews:book_reviews' book.id %}" class="btn btn-secondary ml-2">查看评论</a>
@@ -88,4 +109,28 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script defer>
+    // 专门为详情页优化的图片加载
+    document.addEventListener('DOMContentLoaded', function() {
+        const bookImage = document.querySelector('img[data-src]');
+        if (bookImage) {
+            const skeleton = bookImage.previousElementSibling;
+            
+            // 预加载图片
+            const img = new Image();
+            img.onload = function() {
+                // 图片加载完成后显示
+                bookImage.style.display = 'block';
+                if (skeleton) {
+                    skeleton.style.display = 'none';
+                }
+                bookImage.classList.add('fade-in');
+            };
+            img.src = bookImage.dataset.src;
+        }
+    });
+</script>
 {% endblock %}

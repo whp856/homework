@@ -2,11 +2,20 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.utils import timezone
+from django.core.mail import get_connection
+from django.conf import settings
+import time
+import logging
 from .models import BorrowRecord
 
+logger = logging.getLogger(__name__)
 
-def send_borrow_confirmation_email(borrow_record):
-    """发送借阅确认邮件"""
+def send_borrow_confirmation_email(borrow_record, retry_count=3):
+    """发送借阅确认邮件，支持重试机制"""
+    if not borrow_record.user.email:
+        logger.warning(f"用户{borrow_record.user.username}没有邮箱地址，跳过借阅确认邮件")
+        return False
+
     subject = f'图书借阅确认 - 《{borrow_record.book.title}》'
     context = {
         'user': borrow_record.user,
@@ -16,17 +25,38 @@ def send_borrow_confirmation_email(borrow_record):
     }
     html_message = render_to_string('emails/borrow_confirmation.html', context)
     plain_message = strip_tags(html_message)
-    send_mail(
-        subject,
-        plain_message,
-        None,  # 使用DEFAULT_FROM_EMAIL
-        [borrow_record.user.email],
-        html_message=html_message
-    )
+
+    for attempt in range(retry_count):
+        try:
+            # 使用连接池发送邮件
+            with get_connection(fail_silently=False) as connection:
+                send_mail(
+                    subject,
+                    plain_message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [borrow_record.user.email],
+                    html_message=html_message,
+                    connection=connection
+                )
+
+            logger.info(f"借阅确认邮件发送成功: {borrow_record.user.email}")
+            return True
+
+        except Exception as e:
+            logger.warning(f"借阅确认邮件发送失败 (尝试{attempt+1}/{retry_count}): {str(e)}")
+            if attempt < retry_count - 1:
+                time.sleep(2 * (attempt + 1))  # 指数退避
+
+    logger.error(f"借阅确认邮件发送最终失败: {borrow_record.user.email}")
+    return False
 
 
-def send_return_confirmation_email(borrow_record):
-    """发送归还确认邮件"""
+def send_return_confirmation_email(borrow_record, retry_count=3):
+    """发送归还确认邮件，支持重试机制"""
+    if not borrow_record.user.email:
+        logger.warning(f"用户{borrow_record.user.username}没有邮箱地址，跳过归还确认邮件")
+        return False
+
     subject = f'图书归还确认 - 《{borrow_record.book.title}》'
     # 获取归还日期，处理可能为None的情况
     return_date_str = borrow_record.return_date.strftime('%Y-%m-%d') if borrow_record.return_date else timezone.now().strftime('%Y-%m-%d')
@@ -38,13 +68,30 @@ def send_return_confirmation_email(borrow_record):
     }
     html_message = render_to_string('emails/return_confirmation.html', context)
     plain_message = strip_tags(html_message)
-    send_mail(
-        subject,
-        plain_message,
-        None,
-        [borrow_record.user.email],
-        html_message=html_message
-    )
+
+    for attempt in range(retry_count):
+        try:
+            # 使用连接池发送邮件
+            with get_connection(fail_silently=False) as connection:
+                send_mail(
+                    subject,
+                    plain_message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [borrow_record.user.email],
+                    html_message=html_message,
+                    connection=connection
+                )
+
+            logger.info(f"归还确认邮件发送成功: {borrow_record.user.email}")
+            return True
+
+        except Exception as e:
+            logger.warning(f"归还确认邮件发送失败 (尝试{attempt+1}/{retry_count}): {str(e)}")
+            if attempt < retry_count - 1:
+                time.sleep(2 * (attempt + 1))
+
+    logger.error(f"归还确认邮件发送最终失败: {borrow_record.user.email}")
+    return False
 
 
 def send_overdue_reminder_email(borrow_record):

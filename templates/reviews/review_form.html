@@ -26,9 +26,9 @@
                 <div class="form-group">
                     <label for="id_comment">评论内容</label>
                     {{ form.comment }}
-                    {% if form.content.errors %}
+                    {% if form.comment.errors %}
                     <div class="text-danger mt-1">
-                        {% for error in form.content.errors %}
+                        {% for error in form.comment.errors %}
                         <small>{{ error }}</small><br>
                         {% endfor %}
                     </div>

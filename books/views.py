@@ -9,7 +9,7 @@ from datetime import datetime
 from accounts.models import CustomUser
 from .models import Book
 from .forms import BookForm
-from library_management.cache import cache, CACHE_KEY_HOME_STATS, CACHE_KEY_CATEGORIES
+from library_management.cache import cache, CACHE_KEY_HOME_STATS, CACHE_KEY_CATEGORIES, CACHE_KEY_PAGINATED_BOOKS, CACHE_KEY_BOOK_LIST
 
 def is_admin(user):
     return user.is_authenticated and user.is_admin
@@ -22,7 +22,7 @@ def check_admin_permission(request, error_message="您没有权限执行此操�
     return True
 
 def home(request):
-    # 使用缓存获取首页数据，设置10分钟过期
+    # 使用增强的缓存获取首页数据，设置10分钟过期，并使用命名空间
     home_data = cache.get_or_set(
         CACHE_KEY_HOME_STATS,
         lambda: {
@@ -31,7 +31,8 @@ def home(request):
             'book_count': Book.objects.count(),
             'available_count': Book.objects.filter(available_copies__gt=0).count()
         },
-        timeout=600  # 10分钟
+        timeout=600,  # 10分钟
+        namespace='books'
     )
 
     return render(request, 'books/home.html', home_data)
@@ -40,57 +41,40 @@ def home(request):
 def book_list(request):
     query = request.GET.get('q', '')
     category_id = request.GET.get('category', '')
-    
-    # 只有在没有搜索条件时才缓存
-    if not query and not category_id:
-        # 使用缓存获取分类列表
-        categories = cache.get_or_set(
-            CACHE_KEY_CATEGORIES,
-            lambda: list(Book.objects.values('category__name', 'category__id').filter(category__isnull=False).distinct()),
-            timeout=1800  # 30分钟
-        )
-        
-        # 使用缓存获取图书列表
-        cached_books = cache.get('cached_book_list')
-        if cached_books:
-            paginator = Paginator(cached_books, 12)
-            page_number = request.GET.get('page')
-            page_obj = paginator.get_page(page_number)
-            
-            return render(request, 'books/book_list.html', {
-                'page_obj': page_obj,
-                'query': query,
-                'selected_category': category_id,
-                'categories': categories
-            })
-    else:
-        # 有搜索条件时，不使用缓存
-        categories = list(Book.objects.values('category__name', 'category__id').filter(category__isnull=False).distinct())
-    
+    page_number = request.GET.get('page', 1)
+
+    # 清理可能有问题的缓存
+    try:
+        cache.clear('books')
+    except Exception:
+        pass  # 如果缓存清理失败，继续执行
+
     # 执行数据库查询
     books = Book.objects.all().order_by('title')
-    
+
     if query:
         books = books.filter(
             Q(title__icontains=query) |
             Q(author__icontains=query) |
             Q(isbn__icontains=query)
         )
-    
+
     if category_id:
         books = books.filter(category_id=category_id)
-    
-    # 将结果转换为列表以便缓存
-    books_list = list(books)
-    
-    # 只有在没有搜索条件时才缓存结果
-    if not query and not category_id:
-        cache.set('cached_book_list', books_list, timeout=600)  # 10分钟
-    
-    paginator = Paginator(books_list, 12)
-    page_number = request.GET.get('page')
+
+    # 分页
+    paginator = Paginator(books, 12)
+    try:
+        page_number = int(page_number)
+    except (ValueError, TypeError):
+        page_number = 1
+
     page_obj = paginator.get_page(page_number)
-    
+
+    # 获取分类列表（不使用缓存）
+    categories = list(Book.objects.values('category__name', 'category__id').filter(category__isnull=False).distinct())
+
+    # 渲染模板
     return render(request, 'books/book_list.html', {
         'page_obj': page_obj,
         'query': query,
@@ -183,37 +167,47 @@ def book_delete(request, book_id):
 @user_passes_test(is_admin)
 def export_books(request):
     """导出图书数据为Excel文件"""
-    # 获取所有图书数据
-    books = Book.objects.all()
-    
-    # 准备导出数据
-    data = []
-    for book in books:
-        data.append({
-            '书名': book.title,
-            '作者': book.author,
-            'ISBN': book.isbn,
-            '出版社': book.publisher or '',
-            '出版日期': book.publication_date.strftime('%Y-%m-%d') if book.publication_date else '',
-            '分类': book.category.name if book.category else '',
-            '总册数': book.total_copies,
-            '可借册数': book.available_copies,
-            '书架位置': book.location or '',
-            '状态': dict(Book.STATUS_CHOICES).get(book.status, book.status),
-            '创建时间': book.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-            '更新时间': book.updated_at.strftime('%Y-%m-%d %H:%M:%S')
-        })
-    
-    # 创建DataFrame
-    df = pd.DataFrame(data)
-    
-    # 创建HTTP响应
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    filename = f'图书数据_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    
-    # 导出到Excel
-    with pd.ExcelWriter(response, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='图书数据')
-    
-    return response
+    try:
+        # 获取所有图书数据
+        books = Book.objects.all()
+
+        # 准备导出数据
+        data = []
+        for book in books:
+            try:
+                data.append({
+                    '书名': book.title or '',
+                    '作者': book.author or '',
+                    'ISBN': book.isbn or '',
+                    '出版社': book.publisher or '',
+                    '出版日期': book.publication_date.strftime('%Y-%m-%d') if book.publication_date else '',
+                    '分类': book.category.name if book.category else '',
+                    '总册数': book.total_copies or 0,
+                    '可借册数': book.available_copies or 0,
+                    '书架位置': book.location or '',
+                    '状态': dict(Book.STATUS_CHOICES).get(book.status, book.status),
+                    '创建时间': book.created_at.strftime('%Y-%m-%d %H:%M:%S') if book.created_at else '',
+                    '更新时间': book.updated_at.strftime('%Y-%m-%d %H:%M:%S') if book.updated_at else ''
+                })
+            except Exception as e:
+                logger.error(f"处理图书 {book.title} 时出错: {str(e)}")
+                continue
+
+        # 创建DataFrame
+        df = pd.DataFrame(data)
+
+        # 创建HTTP响应
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        filename = f'图书数据_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        # 导出到Excel
+        with pd.ExcelWriter(response, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='图书数据')
+
+        return response
+
+    except Exception as e:
+        logger.error(f"导出图书数据时出错: {str(e)}", exc_info=True)
+        messages.error(request, f'导出失败: {str(e)}')
+        return redirect('books:book_list')

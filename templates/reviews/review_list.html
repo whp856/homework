@@ -36,7 +36,7 @@
                         <td>{{ review.user.username }}</td>
                         <td><a href="{% url 'books:book_detail' review.book.id %}">{{ review.book.title }}</a></td>
                         <td>{{ review.rating }} 星</td>
-                        <td>{{ review.content|truncatechars:50 }}</td>
+                        <td>{{ review.comment|truncatechars:50 }}</td>
                         <td>{{ review.created_at|date:"Y-m-d H:i" }}</td>
                         <td>
                             {% if review.is_approved %}

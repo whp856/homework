@@ -1,6 +1,6 @@
-from django.shortcuts import render, redirect
-from django.contrib.auth import login, authenticate
-from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.contrib.auth.forms import AuthenticationForm
 from .forms import CustomUserCreationForm, CustomUserChangeForm
@@ -68,7 +68,7 @@ def user_list(request):
 
 @user_passes_test(is_admin)
 def user_detail(request, user_id):
-    user = CustomUser.objects.get(id=user_id)
+    user = get_object_or_404(CustomUser, id=user_id)
     borrow_records = BorrowRecord.objects.filter(user=user).order_by('-borrow_date')
     return render(request, 'accounts/user_detail.html', {
         'user_obj': user,
@@ -88,7 +88,7 @@ def logout_view(request):
 
 @user_passes_test(is_admin)
 def toggle_user_status(request, user_id):
-    user = CustomUser.objects.get(id=user_id)
+    user = get_object_or_404(CustomUser, id=user_id)
     user.is_active = not user.is_active
     user.save()
     messages.success(request, f'用户 {user.username} 状态已更新。')
