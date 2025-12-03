@@ -9,6 +9,7 @@ from datetime import datetime
 from accounts.models import CustomUser
 from .models import Book
 from .forms import BookForm
+from library_management.cache import cache, CACHE_KEY_HOME_STATS, CACHE_KEY_CATEGORIES
 
 def is_admin(user):
     return user.is_authenticated and user.is_admin
@@ -21,41 +22,75 @@ def check_admin_permission(request, error_message="您没有权限执行此操�
     return True
 
 def home(request):
-    recent_books = Book.objects.all().order_by('-created_at')[:6]
-    categories = Book.objects.values('category__name', 'category__id').filter(category__isnull=False).distinct()
-    book_count = Book.objects.count()
-    available_count = Book.objects.filter(available_copies__gt=0).count()
+    # 使用缓存获取首页数据，设置10分钟过期
+    home_data = cache.get_or_set(
+        CACHE_KEY_HOME_STATS,
+        lambda: {
+            'recent_books': list(Book.objects.all().order_by('-created_at')[:6]),
+            'categories': list(Book.objects.values('category__name', 'category__id').filter(category__isnull=False).distinct()),
+            'book_count': Book.objects.count(),
+            'available_count': Book.objects.filter(available_copies__gt=0).count()
+        },
+        timeout=600  # 10分钟
+    )
 
-    return render(request, 'books/home.html', {
-        'recent_books': recent_books,
-        'categories': categories,
-        'book_count': book_count,
-        'available_count': available_count
-    })
+    return render(request, 'books/home.html', home_data)
 
 @login_required
 def book_list(request):
     query = request.GET.get('q', '')
     category_id = request.GET.get('category', '')
-
+    
+    # 只有在没有搜索条件时才缓存
+    if not query and not category_id:
+        # 使用缓存获取分类列表
+        categories = cache.get_or_set(
+            CACHE_KEY_CATEGORIES,
+            lambda: list(Book.objects.values('category__name', 'category__id').filter(category__isnull=False).distinct()),
+            timeout=1800  # 30分钟
+        )
+        
+        # 使用缓存获取图书列表
+        cached_books = cache.get('cached_book_list')
+        if cached_books:
+            paginator = Paginator(cached_books, 12)
+            page_number = request.GET.get('page')
+            page_obj = paginator.get_page(page_number)
+            
+            return render(request, 'books/book_list.html', {
+                'page_obj': page_obj,
+                'query': query,
+                'selected_category': category_id,
+                'categories': categories
+            })
+    else:
+        # 有搜索条件时，不使用缓存
+        categories = list(Book.objects.values('category__name', 'category__id').filter(category__isnull=False).distinct())
+    
+    # 执行数据库查询
     books = Book.objects.all().order_by('title')
-
+    
     if query:
         books = books.filter(
             Q(title__icontains=query) |
             Q(author__icontains=query) |
             Q(isbn__icontains=query)
         )
-
+    
     if category_id:
         books = books.filter(category_id=category_id)
-
-    paginator = Paginator(books, 12)
+    
+    # 将结果转换为列表以便缓存
+    books_list = list(books)
+    
+    # 只有在没有搜索条件时才缓存结果
+    if not query and not category_id:
+        cache.set('cached_book_list', books_list, timeout=600)  # 10分钟
+    
+    paginator = Paginator(books_list, 12)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-
-    categories = Book.objects.values('category__name', 'category__id').filter(category__isnull=False).distinct()
-
+    
     return render(request, 'books/book_list.html', {
         'page_obj': page_obj,
         'query': query,

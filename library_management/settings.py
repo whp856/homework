@@ -107,3 +107,10 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = '3622075226@qq.com'  # 你的QQ邮箱
 EMAIL_HOST_PASSWORD = 'lvsacuyushhydbcj'  # QQ邮箱的授权码
 DEFAULT_FROM_EMAIL = '3622075226@qq.com'  # 默认发件人邮箱
+
+# 在文件末尾添加缓存配置
+
+# 缓存配置
+CACHE_DEFAULT_TIMEOUT = 300  # 默认5分钟
+CACHE_LONG_TIMEOUT = 1800  # 30分钟，用于相对稳定的数据
+CACHE_SHORT_TIMEOUT = 60  # 1分钟，用于频繁变化的数据

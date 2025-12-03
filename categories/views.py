@@ -6,13 +6,20 @@ from django.contrib.auth.decorators import user_passes_test
 from accounts.models import CustomUser
 from .models import Category
 from .forms import CategoryForm
+from library_management.cache import cache
 
 def is_admin(user):
     return user.is_authenticated and user.is_admin
 
 @login_required
 def category_list(request):
-    categories = Category.objects.all().order_by('name')
+    # 使用缓存获取分类列表，设置30分钟过期
+    categories = cache.get_or_set(
+        'cached_category_list',
+        lambda: list(Category.objects.all().order_by('name')),
+        timeout=1800  # 30分钟
+    )
+    
     paginator = Paginator(categories, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
@@ -33,6 +40,9 @@ def category_create(request):
         form = CategoryForm(request.POST)
         if form.is_valid():
             form.save()
+            # 清除缓存
+            cache.delete('cached_category_list')
+            cache.delete('categories')
             messages.success(request, '分类创建成功！')
             return redirect('categories:category_list')
     else:
@@ -49,14 +59,16 @@ def category_update(request, category_id):
         form = CategoryForm(request.POST, instance=category)
         if form.is_valid():
             form.save()
+            # 清除缓存
+            cache.delete('cached_category_list')
+            cache.delete('categories')
             messages.success(request, '分类更新成功！')
             return redirect('categories:category_list')
     else:
         form = CategoryForm(instance=category)
     return render(request, 'categories/category_form.html', {
         'form': form,
-        'title': '编辑分类',
-        'category': category
+        'title': '更新分类'
     })
 
 @user_passes_test(is_admin)

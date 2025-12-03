@@ -1,6 +1,9 @@
 from django.db import models, transaction
 from django.db.models import F
 from categories.models import Category
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+from library_management.cache import cache, CACHE_KEY_HOME_STATS, CACHE_KEY_CATEGORIES
 
 class Book(models.Model):
     STATUS_CHOICES = [
@@ -64,6 +67,10 @@ class Book(models.Model):
                 updated_book.status = 'borrowed'
                 updated_book.save()
 
+            # 清除缓存
+            cache.delete(CACHE_KEY_HOME_STATS)
+            cache.delete('cached_book_list')
+            
             return True
         except Exception:
             return False
@@ -88,7 +95,25 @@ class Book(models.Model):
             if updated_book.available_copies > 0:
                 updated_book.status = 'available'
                 updated_book.save()
-
+            
+            # 清除缓存
+            cache.delete(CACHE_KEY_HOME_STATS)
+            cache.delete('cached_book_list')
+            
             return True
         except Exception:
             return False
+
+# 图书保存后清除相关缓存
+@receiver(post_save, sender=Book)
+def clear_book_cache_on_save(sender, instance, **kwargs):
+    cache.delete(CACHE_KEY_HOME_STATS)
+    cache.delete(CACHE_KEY_CATEGORIES)
+    cache.delete('cached_book_list')
+
+# 图书删除后清除相关缓存
+@receiver(post_delete, sender=Book)
+def clear_book_cache_on_delete(sender, instance, **kwargs):
+    cache.delete(CACHE_KEY_HOME_STATS)
+    cache.delete(CACHE_KEY_CATEGORIES)
+    cache.delete('cached_book_list')
