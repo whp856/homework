@@ -1,8 +1,11 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.http import HttpResponse
+import pandas as pd
+from datetime import datetime
 from accounts.models import CustomUser
 from .models import Book
 from .forms import BookForm
@@ -139,3 +142,43 @@ def book_delete(request, book_id):
         messages.success(request, '图书删除成功！')
         return redirect('books:book_list')
     return render(request, 'books/book_delete.html', {'book': book})
+
+
+@login_required
+@user_passes_test(is_admin)
+def export_books(request):
+    """导出图书数据为Excel文件"""
+    # 获取所有图书数据
+    books = Book.objects.all()
+    
+    # 准备导出数据
+    data = []
+    for book in books:
+        data.append({
+            '书名': book.title,
+            '作者': book.author,
+            'ISBN': book.isbn,
+            '出版社': book.publisher or '',
+            '出版日期': book.publication_date.strftime('%Y-%m-%d') if book.publication_date else '',
+            '分类': book.category.name if book.category else '',
+            '总册数': book.total_copies,
+            '可借册数': book.available_copies,
+            '书架位置': book.location or '',
+            '状态': dict(Book.STATUS_CHOICES).get(book.status, book.status),
+            '创建时间': book.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            '更新时间': book.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+        })
+    
+    # 创建DataFrame
+    df = pd.DataFrame(data)
+    
+    # 创建HTTP响应
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f'图书数据_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    # 导出到Excel
+    with pd.ExcelWriter(response, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='图书数据')
+    
+    return response

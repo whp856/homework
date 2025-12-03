@@ -11,4 +11,6 @@ urlpatterns = [
     path('create/', views.create_borrow_record, name='create_record'),
     path('<int:record_id>/update/', views.update_borrow_record, name='update_record'),
     path('<int:record_id>/delete/', views.delete_borrow_record, name='delete_record'),
+    path('export/all/', views.export_borrow_records, name='export_all_records'),  # 添加所有记录导出URL
+    path('export/my/', views.export_my_borrow_records, name='export_my_records'),  # 添加个人记录导出URL
 ]

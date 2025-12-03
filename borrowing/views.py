@@ -11,6 +11,9 @@ from accounts.models import CustomUser
 from books.models import Book  # 将Book模型导入移到开头
 from .models import BorrowRecord
 from .forms import BorrowRecordForm
+from django.http import HttpResponse
+import pandas as pd
+from datetime import datetime
 
 def is_admin(user):
     return user.is_authenticated and user.is_admin
@@ -202,3 +205,74 @@ def delete_borrow_record(request, record_id):
         messages.success(request, '借阅记录删除成功！')
         return redirect('borrowing:record_list')
     return render(request, 'borrowing/record_delete.html', {'record': record})
+
+
+@login_required
+@user_passes_test(is_admin)
+def export_borrow_records(request):
+    """导出所有借阅记录为Excel文件"""
+    # 获取所有借阅记录
+    records = BorrowRecord.objects.all()
+    
+    # 准备导出数据
+    data = []
+    for record in records:
+        data.append({
+            '用户': record.user.username,
+            '图书名称': record.book.title,
+            '借阅日期': record.borrow_date.strftime('%Y-%m-%d %H:%M:%S'),
+            '应还日期': record.due_date.strftime('%Y-%m-%d'),
+            '归还日期': record.return_date.strftime('%Y-%m-%d %H:%M:%S') if record.return_date else '',
+            '状态': dict(BorrowRecord.STATUS_CHOICES).get(record.status, record.status),
+            '备注': record.notes or '',
+            '是否逾期': '是' if record.is_overdue else '否',
+            '逾期天数': record.days_overdue if record.is_overdue else 0
+        })
+    
+    # 创建DataFrame
+    df = pd.DataFrame(data)
+    
+    # 创建HTTP响应
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f'借阅记录_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    # 导出到Excel
+    with pd.ExcelWriter(response, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='借阅记录')
+    
+    return response
+
+@login_required
+def export_my_borrow_records(request):
+    """导出个人借阅记录为Excel文件"""
+    # 获取当前用户的借阅记录
+    records = BorrowRecord.objects.filter(user=request.user)
+    
+    # 准备导出数据
+    data = []
+    for record in records:
+        data.append({
+            '图书名称': record.book.title,
+            '作者': record.book.author,
+            '借阅日期': record.borrow_date.strftime('%Y-%m-%d %H:%M:%S'),
+            '应还日期': record.due_date.strftime('%Y-%m-%d'),
+            '归还日期': record.return_date.strftime('%Y-%m-%d %H:%M:%S') if record.return_date else '',
+            '状态': dict(BorrowRecord.STATUS_CHOICES).get(record.status, record.status),
+            '是否逾期': '是' if record.is_overdue else '否',
+            '逾期天数': record.days_overdue if record.is_overdue else 0
+        })
+    
+    # 创建DataFrame
+    df = pd.DataFrame(data)
+    
+    # 创建HTTP响应
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f'我的借阅记录_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    # 导出到Excel
+    with pd.ExcelWriter(response, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='我的借阅记录')
+    
+    return response

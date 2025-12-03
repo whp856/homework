@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from django.contrib.auth.decorators import user_passes_test
 
 app_name = 'books'
 
@@ -10,4 +11,5 @@ urlpatterns = [
     path('create/', views.book_create, name='book_create'),
     path('<int:book_id>/update/', views.book_update, name='book_update'),
     path('<int:book_id>/delete/', views.book_delete, name='book_delete'),
+    path('export/', views.export_books, name='export_books'),  # 添加导出功能URL
 ]
