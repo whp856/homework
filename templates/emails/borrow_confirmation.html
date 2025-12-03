@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>图书借阅确认</title>
+</head>
+<body>
+    <h2>图书借阅确认</h2>
+    <p>尊敬的 {{ user.username }}：</p>
+    <p>您已成功借阅以下图书：</p>
+    <ul>
+        <li><strong>书名：</strong>{{ book.title }}</li>
+        <li><strong>作者：</strong>{{ book.author }}</li>
+        <li><strong>借阅日期：</strong>{{ borrow_date }}</li>
+        <li><strong>应还日期：</strong>{{ due_date }}</li>
+    </ul>
+    <p>请按时归还，感谢您的配合！</p>
+    <p>此致<br>图书管理系统</p>
+</body>
+</html>

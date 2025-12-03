@@ -14,6 +14,8 @@ from .forms import BorrowRecordForm
 from django.http import HttpResponse
 import pandas as pd
 from datetime import datetime
+# 添加邮件相关导入
+from .emails import send_borrow_confirmation_email, send_return_confirmation_email
 
 def is_admin(user):
     return user.is_authenticated and user.is_admin
@@ -80,6 +82,11 @@ def borrow_book(request, book_id):
             return redirect('books:book_detail', book_id=book.id)
 
         # 记录借阅日志（可选）
+        # 在成功借阅后发送邮件
+        if request.user.email:
+            send_borrow_confirmation_email(borrow_record)
+        
+        # 记录借阅日志
         if request.user.is_admin:
             messages.success(request, f'管理员借阅《{book.title}》成功，请于{borrow_record.due_date.strftime("%Y-%m-%d")}前归还。')
         else:
@@ -119,21 +126,29 @@ def return_book(request, record_id):
         book = Book.objects.select_for_update().get(id=record.book.id)
 
         # 原子性地归还图书
-        if not record.return_book():
+        if record.return_book():
+            # 确保return_date已经设置后再发送邮件
+            # 重新获取记录以确保所有字段都已更新
+            record.refresh_from_db()
+            
+            # 在成功归还后发送邮件
+            if record.user.email:
+                send_return_confirmation_email(record)
+            
+            # 根据用户角色显示不同的成功消息
+            if request.user.is_admin:
+                if record.user != request.user:
+                    messages.success(request, f'已为用户{record.user.username}归还《{record.book.title}》。')
+                else:
+                    messages.success(request, f'管理员归还《{record.book.title}》成功。')
+            else:
+                messages.success(request, f'《{record.book.title}》归还成功。')
+        else:
             messages.error(request, '归还失败，请检查图书状态。')
             if request.user.is_admin:
                 return redirect('borrowing:record_list')
             else:
                 return redirect('borrowing:my_records')
-
-        # 根据用户角色显示不同的成功消息
-        if request.user.is_admin:
-            if record.user != request.user:
-                messages.success(request, f'已为用户{record.user.username}归还《{record.book.title}》。')
-            else:
-                messages.success(request, f'管理员归还《{record.book.title}》成功。')
-        else:
-            messages.success(request, f'《{record.book.title}》归还成功。')
 
         # 重定向到相应的页面
         if request.user.is_admin:

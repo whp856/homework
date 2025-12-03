@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>逾期提醒</title>
+</head>
+<body>
+    <h2>【逾期提醒】</h2>
+    <p>尊敬的 {{ user.username }}：</p>
+    <p>您借阅的以下图书已逾期：</p>
+    <ul>
+        <li><strong>书名：</strong>{{ book.title }}</li>
+        <li><strong>作者：</strong>{{ book.author }}</li>
+        <li><strong>应还日期：</strong>{{ due_date }}</li>
+        <li><strong>当前逾期天数：</strong>{{ days_overdue }}天</li>
+    </ul>
+    <p>请尽快归还，以免影响您的借阅权限。感谢您的配合！</p>
+    <p>此致<br>图书管理系统</p>
+</body>
+</html>

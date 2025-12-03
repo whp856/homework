@@ -98,3 +98,12 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'home'  # 这将重定向到受保护的主页
 LOGOUT_REDIRECT_URL = 'welcome'
+
+# 邮件配置
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.qq.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = '3622075226@qq.com'  # 你的QQ邮箱
+EMAIL_HOST_PASSWORD = 'lvsacuyushhydbcj'  # QQ邮箱的授权码
+DEFAULT_FROM_EMAIL = '3622075226@qq.com'  # 默认发件人邮箱

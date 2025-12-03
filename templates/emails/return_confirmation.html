@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>图书归还确认</title>
+</head>
+<body>
+    <h2>图书归还确认</h2>
+    <p>尊敬的 {{ user.username }}：</p>
+    <p>您已成功归还以下图书：</p>
+    <ul>
+        <li><strong>书名：</strong>{{ book.title }}</li>
+        <li><strong>作者：</strong>{{ book.author }}</li>
+        <li><strong>借阅日期：</strong>{{ borrow_date }}</li>
+        <li><strong>归还日期：</strong>{{ return_date }}</li>
+    </ul>
+    <p>感谢您使用图书管理系统！</p>
+    <p>此致<br>图书管理系统</p>
+</body>
+</html>
