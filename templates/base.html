@@ -67,7 +67,9 @@
                             管理员功能
                         </a>
                         <div class="dropdown-menu" aria-labelledby="adminDropdown">
+                            <a class="dropdown-item" href="{% url 'accounts:user_list' %}">用户管理</a>
                             <a class="dropdown-item" href="{% url 'borrowing:record_list' %}">所有借阅记录</a>
+                            <a class="dropdown-item" href="{% url 'categories:category_list' %}">分类管理</a>
                             <!-- 其他管理员功能 -->
                         </div>
                     </li>

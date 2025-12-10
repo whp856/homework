@@ -7,7 +7,12 @@
     <div class="card">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h2>所有借阅记录</h2>
-            <a href="{% url 'borrowing:create_record' %}" class="btn btn-secondary">创建借阅记录</a>
+            <div>
+                <a href="{% url 'borrowing:create_record' %}" class="btn btn-secondary">创建借阅记录</a>
+                <a href="{% url 'borrowing:export_borrow_records' %}" class="btn btn-light">
+                    <i class="bi bi-download"></i> 导出Excel
+                </a>
+            </div>
         </div>
         <div class="card-body">
             {% if messages %}
