@@ -16,6 +16,7 @@ from library_management.cache import (
     CACHE_KEY_BOOK_DETAIL, CACHE_KEY_SEARCH_RESULTS, cache_query, get_cache_key_with_params,
     invalidate_book_cache
 )
+from library_management.pagination import get_paginated_books, get_pagination_context, PaginationCacheManager
 from library_management.excel_export import ExcelExporter
 
 logger = logging.getLogger(__name__)
@@ -91,42 +92,75 @@ def get_books_with_filters(query='', category_id=''):
 
 @login_required
 def book_list(request):
-    query = request.GET.get('q', '')
-    category_id = request.GET.get('category', '')
+    query = request.GET.get('q', '').strip()
+    category_id = request.GET.get('category', '').strip()
     page_number = request.GET.get('page', 1)
+    per_page = int(request.GET.get('per_page', 12))
 
-    # 生成搜索结果的缓存键
-    cache_key = get_cache_key_with_params(
-        CACHE_KEY_SEARCH_RESULTS,
-        query=query or 'none',
-        category=category_id or 'none'
-    )
-
-    # 尝试从缓存获取搜索结果
-    books = cache.get(cache_key, namespace='books')
-    if books is None:
-        books = get_books_with_filters(query, category_id)
-        cache.set(cache_key, books, timeout=300, namespace='books')  # 5分钟缓存
-
-    # 分页
-    paginator = Paginator(books, 12)
+    # 验证页码
     try:
         page_number = int(page_number)
+        if page_number < 1:
+            page_number = 1
     except (ValueError, TypeError):
         page_number = 1
 
-    page_obj = paginator.get_page(page_number)
+    # 验证每页数量
+    allowed_per_page = [12, 24, 48, 96]
+    if per_page not in allowed_per_page:
+        per_page = 12
 
-    # 获取分类列表（不使用缓存）
-    categories = list(Book.objects.values('category__name', 'category__id').filter(category__isnull=False).distinct())
+    # 获取缓存的分类列表
+    categories_cache_key = 'category_list'
+    categories = cache.get(categories_cache_key, namespace='books')
+    if categories is None:
+        categories = list(Book.objects.values('category__name', 'category__id')
+                          .filter(category__isnull=False)
+                          .distinct())
+        cache.set(categories_cache_key, categories, timeout=1800, namespace='books')  # 30分钟缓存
 
-    # 渲染模板
-    return render(request, 'books/book_list.html', {
-        'page_obj': page_obj,
-        'query': query,
-        'selected_category': category_id,
-        'categories': categories
-    })
+    # 使用优化的分页获取数据
+    try:
+        pagination_data = get_paginated_books(
+            query=query,
+            category_id=category_id,
+            page=page_number,
+            per_page=per_page
+        )
+
+        # 生成分页上下文
+        pagination_context = get_pagination_context(
+            pagination_data,
+            request_path=request.path
+        )
+
+        # 添加查询参数
+        context = {
+            **pagination_context,
+            'query': query,
+            'selected_category': category_id,
+            'categories': categories,
+            'per_page': per_page,
+            'per_page_options': allowed_per_page,
+            'current_search_params': f"q={query}&category={category_id}&per_page={per_page}",
+        }
+
+        return render(request, 'books/book_list.html', context)
+
+    except Exception as e:
+        logger.error(f"获取图书列表时出错: {str(e)}", exc_info=True)
+        messages.error(request, f"获取图书列表失败: {str(e)}")
+
+        # 降级到简单查询
+        books = Book.objects.all().order_by('title')[:12]
+        return render(request, 'books/book_list.html', {
+            'object_list': books,
+            'query': query,
+            'selected_category': category_id,
+            'categories': categories,
+            'is_paginated': False,
+            'error_message': "分页功能暂时不可用，显示前12条记录"
+        })
 
 @login_required
 @cache_query(timeout=600, namespace='books')

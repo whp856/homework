@@ -150,6 +150,13 @@ def clear_book_cache_on_save(sender, instance, **kwargs):
 
         # 清除所有搜索结果缓存
         cache.clear(namespace='books:search')
+        # 清除分页相关缓存
+        cache.clear(namespace='pagination')
+        cache.delete('category_list', namespace='books')
+
+        # 使用分页缓存管理器失效缓存
+        from library_management.pagination import PaginationCacheManager
+        PaginationCacheManager.invalidate_pagination_cache('book')
 
     except Exception:
         pass  # 如果缓存删除失败，忽略
@@ -171,6 +178,13 @@ def clear_book_cache_on_delete(sender, instance, **kwargs):
 
         # 清除所有搜索结果缓存
         cache.clear(namespace='books:search')
+        # 清除分页相关缓存
+        cache.clear(namespace='pagination')
+        cache.delete('category_list', namespace='books')
+
+        # 使用分页缓存管理器失效缓存
+        from library_management.pagination import PaginationCacheManager
+        PaginationCacheManager.invalidate_pagination_cache('book')
 
     except Exception:
         pass  # 如果缓存删除失败，忽略

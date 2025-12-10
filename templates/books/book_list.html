@@ -89,54 +89,188 @@
         {% endfor %}
     </div>
     
+    <!-- 分页信息栏 -->
+    {% if is_paginated and object_list %}
+    <div class="row mt-4 mb-3">
+        <div class="col-md-6">
+            <div class="d-flex align-items-center">
+                <span class="text-muted">
+                    显示第 {{ start_index|add:-object_list|length|add:1 }}-{{ end_index }} 条，
+                    共 {{ total_items }} 条记录
+                </span>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="d-flex justify-content-end align-items-center gap-2">
+                <label class="form-label mb-0 me-2">每页显示:</label>
+                <select class="form-select form-select-sm" id="perPageSelect" onchange="changePerPage()">
+                    {% for opt in per_page_options %}
+                    <option value="{{ opt }}" {% if per_page == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                </select>
+                <div class="text-muted">
+                    第 {{ current_page }} 页，共 {{ total_pages }} 页
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 分页控件 -->
-    <nav aria-label="Page navigation" class="mt-4">
+    <nav aria-label="Page navigation">
         <ul class="pagination justify-content-center">
-            {% if page_obj.has_previous %}
+            <!-- 首页 -->
+            {% if show_first_page %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}" aria-label="Previous">
+                <a class="page-link" href="?{{ current_search_params }}&page=1" aria-label="First">
+                    <span aria-hidden="true">&laquo;&laquo;</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- 上一页 -->
+            {% if has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?{{ current_search_params }}&page={{ prev_page_number }}" aria-label="Previous">
                     <span aria-hidden="true">&laquo;</span>
                 </a>
             </li>
             {% else %}
             <li class="page-item disabled">
-                <a class="page-link" href="#" aria-label="Previous">
+                <a class="page-link" href="#" tabindex="-1" aria-label="Previous">
                     <span aria-hidden="true">&laquo;</span>
                 </a>
             </li>
             {% endif %}
-            
-            {% for num in page_obj.paginator.page_range %}
-            {% if page_obj.number == num %}
-            <li class="page-item active">
-                <a class="page-link" href="?page={{ num }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}">{{ num }}</a>
+
+            <!-- 页码 -->
+            {% for num in page_range %}
+            {% if current_page == num %}
+            <li class="page-item active" aria-current="page">
+                <span class="page-link">{{ num }}</span>
             </li>
             {% else %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ num }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}">{{ num }}</a>
+                <a class="page-link" href="?{{ current_search_params }}&page={{ num }}">{{ num }}</a>
             </li>
             {% endif %}
             {% endfor %}
-            
-            {% if page_obj.has_next %}
+
+            <!-- 下一页 -->
+            {% if has_next %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}" aria-label="Next">
+                <a class="page-link" href="?{{ current_search_params }}&page={{ next_page_number }}" aria-label="Next">
                     <span aria-hidden="true">&raquo;</span>
                 </a>
             </li>
             {% else %}
             <li class="page-item disabled">
-                <a class="page-link" href="#" aria-label="Next">
+                <a class="page-link" href="#" tabindex="-1" aria-label="Next">
                     <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- 末页 -->
+            {% if show_last_page %}
+            <li class="page-item">
+                <a class="page-link" href="?{{ current_search_params }}&page={{ total_pages }}" aria-label="Last">
+                    <span aria-hidden="true">&raquo;&raquo;</span>
                 </a>
             </li>
             {% endif %}
         </ul>
     </nav>
+
+    <!-- 快速跳转 -->
+    <div class="row mt-3">
+        <div class="col-md-4 offset-md-4">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text">跳转至</span>
+                <input type="number" class="form-control" id="jumpToPage" min="1" max="{{ total_pages }}" value="{{ current_page }}">
+                <button class="btn btn-outline-secondary" onclick="jumpToPage()">跳转</button>
+            </div>
+        </div>
+    </div>
     {% else %}
-    <div class="alert alert-info" role="alert">
+    {% if object_list %}
+        <div class="text-center mt-4">
+            <p class="text-muted">没有更多数据</p>
+        </div>
+    {% else %}
+    <div class="alert alert-info mt-4" role="alert">
         没有找到符合条件的图书
     </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- 分页预加载脚本 -->
+    <script>
+    let preloadTimeout;
+
+    function preloadPage(pageNum) {
+        // 取消之前的预加载
+        if (preloadTimeout) {
+            clearTimeout(preloadTimeout);
+        }
+
+        // 延迟预加载下一页
+        preloadTimeout = setTimeout(() => {
+            const params = new URLSearchParams(window.location.search);
+            params.set('page', pageNum);
+
+            fetch(`?${params.toString()}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(response => {
+                if (response.ok) {
+                    // 预加载成功
+                    console.log(`Page ${pageNum} preloaded`);
+                }
+            }).catch(error => {
+                console.log(`Preload failed for page ${pageNum}:`, error);
+            });
+        }, 1000); // 1秒后预加载
+    }
+
+    function changePerPage() {
+        const perPage = document.getElementById('perPageSelect').value;
+        const params = new URLSearchParams(window.location.search);
+        params.set('per_page', perPage);
+        params.set('page', '1'); // 重置到第一页
+        window.location.search = params.toString();
+    }
+
+    function jumpToPage() {
+        const pageNum = document.getElementById('jumpToPage').value;
+        if (pageNum && pageNum >= 1 && pageNum <= {{ total_pages }}) {
+            const params = new URLSearchParams(window.location.search);
+            params.set('page', pageNum);
+            window.location.search = params.toString();
+        } else {
+            alert(`请输入1到{{ total_pages }}之间的页码`);
+        }
+    }
+
+    // 页面加载完成后预加载下一页
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if has_next %}
+        preloadPage({{ next_page_number }});
+        {% endif %}
+    });
+
+    // 当用户悬停在分页链接上时预加载
+    document.addEventListener('mouseover', function(e) {
+        if (e.target && e.target.closest('.page-link')) {
+            const href = e.target.getAttribute('href');
+            if (href) {
+                const urlParams = new URLSearchParams(href.split('?')[1] || '');
+                const pageNum = urlParams.get('page');
+                if (pageNum && pageNum !== '{{ current_page }}') {
+                    preloadPage(pageNum);
+                }
+            }
+        }
+    });
+    </script>
     {% endif %}
 </div>
 {% endblock %}
