@@ -211,3 +211,41 @@ def export_books(request):
         logger.error(f"导出图书数据时出错: {str(e)}", exc_info=True)
         messages.error(request, f'导出失败: {str(e)}')
         return redirect('books:book_list')
+
+@user_passes_test(is_admin)
+def export_statistics(request):
+    """导出图书馆统计数据"""
+    try:
+        from categories.models import Category
+        from accounts.models import CustomUser
+
+        # 准备统计数据
+        stats_data = {
+            'total_books': Book.objects.count(),
+            'available_books': Book.objects.filter(available_copies__gt=0).count(),
+            'borrowed_books': Book.objects.filter(available_copies=0, status='borrowed').count(),
+            'total_users': CustomUser.objects.count(),
+            'active_users': CustomUser.objects.filter(is_active=True).count(),
+        }
+
+        # 分类统计
+        category_stats = {}
+        categories = Category.objects.all()
+        for category in categories:
+            category_books = Book.objects.filter(category=category)
+            category_stats[category.name] = {
+                'book_count': category_books.count(),
+                'available_count': category_books.filter(available_copies__gt=0).count(),
+                'borrowed_count': category_books.filter(available_copies=0, status='borrowed').count()
+            }
+        stats_data['category_stats'] = category_stats
+
+        # 使用通用导出工具
+        response = ExcelExporter.export_statistics(stats_data)
+        messages.success(request, '统计数据导出成功！')
+        return response
+
+    except Exception as e:
+        logger.error(f"导出统计数据时出错: {str(e)}", exc_info=True)
+        messages.error(request, f'导出失败: {str(e)}')
+        return redirect('books:book_list')

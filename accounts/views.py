@@ -3,9 +3,16 @@ from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.contrib.auth.forms import AuthenticationForm
+from django.http import HttpResponse
+import pandas as pd
+from datetime import datetime
+import logging
 from .forms import CustomUserCreationForm, CustomUserChangeForm
 from .models import CustomUser
 from borrowing.models import BorrowRecord
+from library_management.excel_export import ExcelExporter
+
+logger = logging.getLogger(__name__)
 
 def register(request):
     if request.method == 'POST':
@@ -93,3 +100,20 @@ def toggle_user_status(request, user_id):
     user.save()
     messages.success(request, f'用户 {user.username} 状态已更新。')
     return redirect('accounts:user_list')
+
+@user_passes_test(is_admin)
+def export_users(request):
+    """导出用户数据为Excel文件"""
+    try:
+        # 获取所有用户数据
+        users = CustomUser.objects.all()
+
+        # 使用通用导出工具
+        response = ExcelExporter.export_users(users)
+        messages.success(request, '用户数据导出成功！')
+        return response
+
+    except Exception as e:
+        logger.error(f"导出用户数据时出错: {str(e)}", exc_info=True)
+        messages.error(request, f'导出失败: {str(e)}')
+        return redirect('accounts:user_list')
