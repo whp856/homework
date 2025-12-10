@@ -11,6 +11,10 @@ from .forms import CustomUserCreationForm, CustomUserChangeForm
 from .models import CustomUser
 from borrowing.models import BorrowRecord
 from library_management.excel_export import ExcelExporter
+from library_management.cache import (
+    cache, CACHE_KEY_USER_STATS, cache_query, get_cache_key_with_params,
+    invalidate_user_cache
+)
 
 logger = logging.getLogger(__name__)
 

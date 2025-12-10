@@ -10,7 +10,12 @@ import logging
 from accounts.models import CustomUser
 from .models import Book
 from .forms import BookForm
-from library_management.cache import cache, CACHE_KEY_HOME_STATS, CACHE_KEY_CATEGORIES, CACHE_KEY_PAGINATED_BOOKS, CACHE_KEY_BOOK_LIST
+from library_management.cache import (
+    cache, CACHE_KEY_HOME_STATS, CACHE_KEY_CATEGORIES, CACHE_KEY_PAGINATED_BOOKS,
+    CACHE_KEY_BOOK_LIST, CACHE_KEY_POPULAR_BOOKS, CACHE_KEY_RECENT_BOOKS,
+    CACHE_KEY_BOOK_DETAIL, CACHE_KEY_SEARCH_RESULTS, cache_query, get_cache_key_with_params,
+    invalidate_book_cache
+)
 from library_management.excel_export import ExcelExporter
 
 logger = logging.getLogger(__name__)
@@ -25,36 +30,52 @@ def check_admin_permission(request, error_message="您没有权限执行此操�
         return False
     return True
 
+@cache_query(timeout=600, namespace='books')
+def get_popular_books():
+    """获取热门图书（按借阅次数排序）"""
+    from borrowing.models import BorrowRecord
+    from django.db.models import Count
+
+    # 统计每本书的借阅次数
+    popular_books = Book.objects.annotate(
+        borrow_count=Count('borrowrecord')
+    ).filter(borrow_count__gt=0).order_by('-borrow_count')[:8]
+
+    return list(popular_books)
+
+@cache_query(timeout=600, namespace='books')
+def get_recent_books():
+    """获取最新添加的图书"""
+    return list(Book.objects.all().order_by('-created_at')[:8])
+
+@cache_query(timeout=600, namespace='books')
+def get_home_stats():
+    """获取首页统计数据"""
+    return {
+        'book_count': Book.objects.count(),
+        'available_count': Book.objects.filter(available_copies__gt=0).count(),
+        'categories': list(Book.objects.values('category__name', 'category__id').filter(category__isnull=False).distinct()),
+    }
+
 def home(request):
-    # 使用增强的缓存获取首页数据，设置10分钟过期，并使用命名空间
-    home_data = cache.get_or_set(
-        CACHE_KEY_HOME_STATS,
-        lambda: {
-            'recent_books': list(Book.objects.all().order_by('-created_at')[:6]),
-            'categories': list(Book.objects.values('category__name', 'category__id').filter(category__isnull=False).distinct()),
-            'book_count': Book.objects.count(),
-            'available_count': Book.objects.filter(available_copies__gt=0).count()
-        },
-        timeout=600,  # 10分钟
-        namespace='books'
-    )
+    """首页视图，使用缓存优化"""
+    # 并行获取缓存数据
+    recent_books = cache.get_or_set(CACHE_KEY_RECENT_BOOKS, get_recent_books, timeout=600, namespace='books')
+    popular_books = cache.get_or_set(CACHE_KEY_POPULAR_BOOKS, get_popular_books, timeout=600, namespace='books')
+    stats = cache.get_or_set(CACHE_KEY_HOME_STATS, get_home_stats, timeout=600, namespace='books')
+
+    home_data = {
+        'recent_books': recent_books,
+        'popular_books': popular_books,
+        **stats
+    }
 
     return render(request, 'books/home.html', home_data)
 
-@login_required
-def book_list(request):
-    query = request.GET.get('q', '')
-    category_id = request.GET.get('category', '')
-    page_number = request.GET.get('page', 1)
-
-    # 清理可能有问题的缓存
-    try:
-        cache.clear('books')
-    except Exception:
-        pass  # 如果缓存清理失败，继续执行
-
-    # 执行数据库查询
-    books = Book.objects.all().order_by('title')
+@cache_query(timeout=300, namespace='books')
+def get_books_with_filters(query='', category_id=''):
+    """获取带筛选条件的图书列表（缓存版本）"""
+    books = Book.objects.select_related('category').all().order_by('title')
 
     if query:
         books = books.filter(
@@ -65,6 +86,27 @@ def book_list(request):
 
     if category_id:
         books = books.filter(category_id=category_id)
+
+    return list(books)
+
+@login_required
+def book_list(request):
+    query = request.GET.get('q', '')
+    category_id = request.GET.get('category', '')
+    page_number = request.GET.get('page', 1)
+
+    # 生成搜索结果的缓存键
+    cache_key = get_cache_key_with_params(
+        CACHE_KEY_SEARCH_RESULTS,
+        query=query or 'none',
+        category=category_id or 'none'
+    )
+
+    # 尝试从缓存获取搜索结果
+    books = cache.get(cache_key, namespace='books')
+    if books is None:
+        books = get_books_with_filters(query, category_id)
+        cache.set(cache_key, books, timeout=300, namespace='books')  # 5分钟缓存
 
     # 分页
     paginator = Paginator(books, 12)
@@ -87,21 +129,43 @@ def book_list(request):
     })
 
 @login_required
-def book_detail(request, book_id):
-    book = get_object_or_404(Book, id=book_id)
+@cache_query(timeout=600, namespace='books')
+def get_book_detail_data(book_id, user_id=None):
+    """获取图书详情数据的缓存函数"""
+    book = Book.objects.select_related('category').get(id=book_id)
     user_borrow_records = None
 
-    if request.user.is_authenticated:
+    if user_id:
         from borrowing.models import BorrowRecord
-        user_borrow_records = BorrowRecord.objects.filter(
-            user=request.user,
+        user_borrow_records = list(BorrowRecord.objects.filter(
+            user_id=user_id,
             book=book
-        ).order_by('-borrow_date')[:5]
+        ).order_by('-borrow_date')[:5].values(
+            'id', 'borrow_date', 'due_date', 'return_date', 'status'
+        ))
 
-    return render(request, 'books/book_detail.html', {
+    return {
         'book': book,
         'user_borrow_records': user_borrow_records
-    })
+    }
+
+def book_detail(request, book_id):
+    """图书详情视图，使用缓存优化"""
+    cache_key = get_cache_key_with_params(CACHE_KEY_BOOK_DETAIL, book_id=book_id)
+
+    # 生成缓存键的函数
+    def key_func():
+        user_id = request.user.id if request.user.is_authenticated else None
+        return get_cache_key_with_params(CACHE_KEY_BOOK_DETAIL, book_id=book_id, user_id=user_id)
+
+    # 获取缓存数据或执行查询
+    data = cache.get(key_func(), namespace='books')
+    if data is None:
+        user_id = request.user.id if request.user.is_authenticated else None
+        data = get_book_detail_data(book_id, user_id)
+        cache.set(key_func(), data, timeout=600, namespace='books')  # 10分钟缓存
+
+    return render(request, 'books/book_detail.html', data)
 
 @login_required
 def book_create(request):

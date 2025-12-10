@@ -3,7 +3,11 @@ from django.db.models import F
 from categories.models import Category
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from library_management.cache import cache, CACHE_KEY_HOME_STATS, CACHE_KEY_CATEGORIES, CACHE_KEY_BOOK_LIST
+from library_management.cache import (
+    cache, CACHE_KEY_HOME_STATS, CACHE_KEY_CATEGORIES, CACHE_KEY_BOOK_LIST,
+    CACHE_KEY_POPULAR_BOOKS, CACHE_KEY_RECENT_BOOKS, CACHE_KEY_SEARCH_RESULTS,
+    invalidate_book_cache
+)
 from django.templatetags.static import static
 class Book(models.Model):
     STATUS_CHOICES = [
@@ -132,22 +136,41 @@ class Book(models.Model):
 # 图书保存后清除相关缓存
 @receiver(post_save, sender=Book)
 def clear_book_cache_on_save(sender, instance, **kwargs):
+    """图书保存后清除相关缓存"""
     try:
-        def save(self, *args, **kwargs):
-            super().save(*args, **kwargs)
-            # 当图书信息更新时，清除首页缓存
-            from library_management.cache import cache, CACHE_KEY_HOME_STATS
-            cache.delete(CACHE_KEY_HOME_STATS)
-        
-        cache.delete(CACHE_KEY_BOOK_LIST)
+        # 使用新的缓存失效函数
+        invalidate_book_cache(instance.id)
+
+        # 清除特定的缓存键
+        cache.delete(CACHE_KEY_HOME_STATS, namespace='books')
+        cache.delete(CACHE_KEY_CATEGORIES, namespace='books')
+        cache.delete(CACHE_KEY_BOOK_LIST, namespace='books')
+        cache.delete(CACHE_KEY_POPULAR_BOOKS, namespace='books')
+        cache.delete(CACHE_KEY_RECENT_BOOKS, namespace='books')
+
+        # 清除所有搜索结果缓存
+        cache.clear(namespace='books:search')
+
     except Exception:
         pass  # 如果缓存删除失败，忽略
 
 # 图书删除后清除相关缓存
 @receiver(post_delete, sender=Book)
 def clear_book_cache_on_delete(sender, instance, **kwargs):
+    """图书删除后清除相关缓存"""
     try:
-        cache.delete(CACHE_KEY_HOME_STATS)
-        cache.delete(CACHE_KEY_BOOK_LIST)
+        # 使用新的缓存失效函数
+        invalidate_book_cache(instance.id)
+
+        # 清除特定的缓存键
+        cache.delete(CACHE_KEY_HOME_STATS, namespace='books')
+        cache.delete(CACHE_KEY_CATEGORIES, namespace='books')
+        cache.delete(CACHE_KEY_BOOK_LIST, namespace='books')
+        cache.delete(CACHE_KEY_POPULAR_BOOKS, namespace='books')
+        cache.delete(CACHE_KEY_RECENT_BOOKS, namespace='books')
+
+        # 清除所有搜索结果缓存
+        cache.clear(namespace='books:search')
+
     except Exception:
         pass  # 如果缓存删除失败，忽略
