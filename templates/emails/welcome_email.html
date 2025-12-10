@@ -1,0 +1,66 @@
+{% extends 'emails/email_base.html' %}
+
+{% block title %}欢迎加入图书管理系统{% endblock %}
+
+{% block header_title %}🎉 欢迎加入{% endblock %}
+
+{% block subtitle %}开启您的阅读之旅{% endblock %}
+
+{% block content %}
+    <div class="success-box">
+        <strong>👋 欢迎您成为图书管理系统的用户！</strong>
+    </div>
+
+    <p>亲爱的 {{ user.username }}：</p>
+
+    <p>恭喜您成功注册图书管理系统！从现在开始，您可以享受以下服务：</p>
+
+    <div class="info-card" style="border-left-color: #28a745; background-color: #d4edda20;">
+        <div class="book-title" style="color: #28a745;">🌟 系统功能介绍</div>
+
+        <div class="info-item">
+            <span class="info-label">📚 在线借阅</span>
+            <span class="info-value">浏览并借阅海量图书资源</span>
+        </div>
+
+        <div class="info-item">
+            <span class="info-label">🔍 智能搜索</span>
+            <span class="info-value">快速找到您需要的图书</span>
+        </div>
+
+        <div class="info-item">
+            <span class="info-label">📖 借阅记录</span>
+            <span class="info-value">查看您的借阅历史和当前状态</span>
+        </div>
+
+        <div class="info-item">
+            <span class="info-label">⏰ 到期提醒</span>
+            <span class="info-value">及时获得图书归还提醒</span>
+        </div>
+
+        <div class="info-item">
+            <span class="info-label">⭐ 图书评分</span>
+            <span class="info-value">分享您的阅读体验</span>
+        </div>
+    </div>
+
+    <div class="warning-box" style="background-color: #e7f3ff; border-left-color: #0066cc;">
+        <strong>📝 快速上手指南：</strong><br>
+        1. 登录系统后，点击"图书目录"浏览图书<br>
+        2. 使用搜索功能快速找到目标图书<br>
+        3. 点击"借阅"按钮提交借阅申请<br>
+        4. 在"我的借阅"中查看借阅状态<br>
+        5. 设置邮件提醒，避免图书逾期
+    </div>
+
+    <p style="text-align: center; margin: 30px 0;">
+        <a href="#" class="action-button" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            立即开始探索
+        </a>
+    </p>
+
+    <p>如有任何问题，请随时联系我们的客服团队。祝您使用愉快！</p>
+
+    <p>此致<br>
+    图书管理系统团队</p>
+{% endblock %}

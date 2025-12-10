@@ -1,20 +1,53 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>图书归还确认</title>
-</head>
-<body>
-    <h2>图书归还确认</h2>
-    <p>尊敬的 {{ user.username }}：</p>
-    <p>您已成功归还以下图书：</p>
-    <ul>
-        <li><strong>书名：</strong>{{ book.title }}</li>
-        <li><strong>作者：</strong>{{ book.author }}</li>
-        <li><strong>借阅日期：</strong>{{ borrow_date }}</li>
-        <li><strong>归还日期：</strong>{{ return_date }}</li>
-    </ul>
-    <p>感谢您使用图书管理系统！</p>
-    <p>此致<br>图书管理系统</p>
-</body>
-</html>
+{% extends 'emails/email_base.html' %}
+
+{% block title %}图书归还确认 - {{ book.title }}{% endblock %}
+
+{% block header_title %}归还成功确认{% endblock %}
+
+{% block subtitle %}图书已安全归还至图书馆{% endblock %}
+
+{% block content %}
+    <div class="success-box">
+        <strong>✅ 感谢！图书归还成功</strong>
+    </div>
+
+    <p>您归还的图书已确认收到，感谢您的及时归还。以下是归还详情：</p>
+
+    <div class="info-card">
+        <div class="book-title">📚 {{ book.title }}</div>
+
+        <div class="info-item">
+            <span class="info-label">作者：</span>
+            <span class="info-value">{{ book.author }}</span>
+        </div>
+
+        {% if book.publisher %}
+        <div class="info-item">
+            <span class="info-label">出版社：</span>
+            <span class="info-value">{{ book.publisher }}</span>
+        </div>
+        {% endif %}
+
+        <div class="info-item">
+            <span class="info-label">借阅日期：</span>
+            <span class="info-value">{{ borrow_date }}</span>
+        </div>
+
+        <div class="info-item">
+            <span class="info-label">归还日期：</span>
+            <span class="info-value"><strong style="color: #27ae60;">{{ return_date }}</strong></span>
+        </div>
+
+        <div class="info-item">
+            <span class="info-label">借阅时长：</span>
+            <span class="info-value">{{ borrow_duration }}天</span>
+        </div>
+    </div>
+
+    <div class="warning-box">
+        <strong>📖 优质图书推荐：</strong><br>
+        根据您的借阅记录，我们为您推荐相关优质图书。欢迎随时到图书馆借阅更多精彩书籍！
+    </div>
+
+    <p>再次感谢您对图书管理工作的支持，期待您的下次光临！</p>
+{% endblock %}

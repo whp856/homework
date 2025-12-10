@@ -1,20 +1,62 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>图书借阅确认</title>
-</head>
-<body>
-    <h2>图书借阅确认</h2>
-    <p>尊敬的 {{ user.username }}：</p>
-    <p>您已成功借阅以下图书：</p>
-    <ul>
-        <li><strong>书名：</strong>{{ book.title }}</li>
-        <li><strong>作者：</strong>{{ book.author }}</li>
-        <li><strong>借阅日期：</strong>{{ borrow_date }}</li>
-        <li><strong>应还日期：</strong>{{ due_date }}</li>
-    </ul>
-    <p>请按时归还，感谢您的配合！</p>
-    <p>此致<br>图书管理系统</p>
-</body>
-</html>
+{% extends 'emails/email_base.html' %}
+
+{% block title %}图书借阅确认 - {{ book.title }}{% endblock %}
+
+{% block header_title %}借阅成功确认{% endblock %}
+
+{% block subtitle %}图书借阅申请已通过{% endblock %}
+
+{% block content %}
+    <div class="success-box">
+        <strong>🎉 恭喜！您已成功借阅图书</strong>
+    </div>
+
+    <p>您申请借阅的图书已确认，请及时到图书馆服务台取书。以下是借阅详情：</p>
+
+    <div class="info-card">
+        <div class="book-title">📚 {{ book.title }}</div>
+
+        <div class="info-item">
+            <span class="info-label">作者：</span>
+            <span class="info-value">{{ book.author }}</span>
+        </div>
+
+        {% if book.publisher %}
+        <div class="info-item">
+            <span class="info-label">出版社：</span>
+            <span class="info-value">{{ book.publisher }}</span>
+        </div>
+        {% endif %}
+
+        {% if book.isbn %}
+        <div class="info-item">
+            <span class="info-label">ISBN：</span>
+            <span class="info-value">{{ book.isbn }}</span>
+        </div>
+        {% endif %}
+
+        <div class="info-item">
+            <span class="info-label">借阅日期：</span>
+            <span class="info-value"><strong>{{ borrow_date }}</strong></span>
+        </div>
+
+        <div class="info-item">
+            <span class="info-label">应还日期：</span>
+            <span class="info-value"><strong style="color: #e74c3c;">{{ due_date }}</strong></span>
+        </div>
+
+        {% if book.location %}
+        <div class="info-item">
+            <span class="info-label">图书位置：</span>
+            <span class="info-value">{{ book.location }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="warning-box">
+        <strong>⚠️ 温馨提醒：</strong><br>
+        请在应还日期前归还图书，逾期将影响您的借阅权限。如需续借，请提前在系统中申请。
+    </div>
+
+    <p>祝您阅读愉快！</p>
+{% endblock %}

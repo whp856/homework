@@ -1,20 +1,58 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>逾期提醒</title>
-</head>
-<body>
-    <h2>【逾期提醒】</h2>
-    <p>尊敬的 {{ user.username }}：</p>
-    <p>您借阅的以下图书已逾期：</p>
-    <ul>
-        <li><strong>书名：</strong>{{ book.title }}</li>
-        <li><strong>作者：</strong>{{ book.author }}</li>
-        <li><strong>应还日期：</strong>{{ due_date }}</li>
-        <li><strong>当前逾期天数：</strong>{{ days_overdue }}天</li>
-    </ul>
-    <p>请尽快归还，以免影响您的借阅权限。感谢您的配合！</p>
-    <p>此致<br>图书管理系统</p>
-</body>
-</html>
+{% extends 'emails/email_base.html' %}
+
+{% block title %}【逾期提醒】{{ book.title }} 已逾期 {{ days_overdue }} 天{% endblock %}
+
+{% block header_title %}⚠️ 图书逾期提醒{% endblock %}
+
+{% block subtitle %}请尽快归还逾期图书{% endblock %}
+
+{% block content %}
+    <div class="danger-box">
+        <strong>🚨 重要提醒：您的图书已逾期</strong>
+    </div>
+
+    <p>我们检测到您有以下图书逾期未还，为避免影响您的借阅权限，请尽快归还：</p>
+
+    <div class="info-card" style="border-left-color: #dc3545; background-color: #f8d7da20;">
+        <div class="book-title" style="color: #dc3545;">📚 {{ book.title }}</div>
+
+        <div class="info-item">
+            <span class="info-label">作者：</span>
+            <span class="info-value">{{ book.author }}</span>
+        </div>
+
+        {% if book.publisher %}
+        <div class="info-item">
+            <span class="info-label">出版社：</span>
+            <span class="info-value">{{ book.publisher }}</span>
+        </div>
+        {% endif %}
+
+        <div class="info-item">
+            <span class="info-label">应还日期：</span>
+            <span class="info-value" style="color: #dc3545; font-weight: bold;">{{ due_date }}</span>
+        </div>
+
+        <div class="info-item">
+            <span class="info-label">当前逾期：</span>
+            <span class="info-value" style="color: #dc3545; font-weight: bold;">{{ days_overdue }} 天</span>
+        </div>
+
+        {% if book.location %}
+        <div class="info-item">
+            <span class="info-label">图书位置：</span>
+            <span class="info-value">{{ book.location }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="warning-box" style="background-color: #fff3cd; border-left-color: #ffc107;">
+        <strong>⏰ 逾期影响说明：</strong><br>
+        • 逾期图书将产生违约金（具体金额请咨询图书馆）<br>
+        • 逾期超过30天将暂停您的借阅权限<br>
+        • 严重逾期可能影响您的信用记录<br>
+        • 请尽快到图书馆办理归还或续借手续
+    </div>
+
+    <p style="margin-top: 30px;">如有特殊情况无法按时归还，请及时与图书馆管理员联系。</p>
+{% endblock %}

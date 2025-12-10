@@ -1,0 +1,95 @@
+{% extends 'emails/email_base.html' %}
+
+{% block title %}新书推荐 - {{ books|length }} 本精选图书{% endblock %}
+
+{% block header_title %}📖 新书推荐{% endblock %}
+
+{% block subtitle %}根据您的阅读偏好为您推荐{% endblock %}
+
+{% block content %}
+    <div class="success-box" style="background-color: #e8f4f8; border-left-color: #17a2b8;">
+        <strong>📚 最新上架图书推荐</strong><br>
+        <span style="font-size: 14px; margin-top: 5px; display: block;">
+            基于您的借阅历史和偏好，我们为您精选了以下新书
+        </span>
+    </div>
+
+    <p>尊敬的 {{ user.username }}：</p>
+
+    <p>图书馆最近上架了一批优质新书，相信其中有您会感兴趣的内容：</p>
+
+    {% for book in books %}
+    <div class="info-card" style="margin-bottom: 20px; border-left-color: #17a2b8; background-color: #f8f9fa;">
+        <div class="book-title" style="color: #17a2b8;">
+            📖 {{ book.title }}
+            {% if book.is_bestseller %}
+                <span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 10px;">畅销书</span>
+            {% endif %}
+            {% if book.is_new %}
+                <span style="background: #28a745; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 5px;">新书上架</span>
+            {% endif %}
+        </div>
+
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+                <div class="info-item">
+                    <span class="info-label">作者：</span>
+                    <span class="info-value">{{ book.author }}</span>
+                </div>
+
+                {% if book.publisher %}
+                <div class="info-item">
+                    <span class="info-label">出版社：</span>
+                    <span class="info-value">{{ book.publisher }}</span>
+                </div>
+                {% endif %}
+
+                {% if book.category %}
+                <div class="info-item">
+                    <span class="info-label">分类：</span>
+                    <span class="info-value">{{ book.category.name }}</span>
+                </div>
+                {% endif %}
+
+                <div class="info-item">
+                    <span class="info-label">状态：</span>
+                    <span class="info-value" style="color: {{ book.available_copies > 0 ? '#28a745' : '#dc3545' }};">
+                        {{ book.available_copies > 0 ? '可借阅' : '已借完' }}
+                    </span>
+                </div>
+            </div>
+
+            {% if book.description %}
+            <div style="flex: 2; min-width: 300px;">
+                <p style="color: #6c757d; line-height: 1.5; font-size: 14px;">
+                    {{ book.description|truncatechars:120 }}
+                </p>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if book.available_copies > 0 %}
+        <p style="margin-top: 15px; text-align: right;">
+            <a href="#" class="action-button" style="font-size: 14px; padding: 8px 20px;">
+                立即借阅
+            </a>
+        </p>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <div class="warning-box" style="background-color: #fff3cd; border-left-color: #ffc107;">
+        <strong>💡 借阅提示：</strong><br>
+        • 新书通常借阅需求较大，建议尽快预约<br>
+        • 可设置到书提醒，图书归还后第一时间通知您<br>
+        • 关注我们的定期推荐，获取更多优质图书信息
+    </div>
+
+    <p style="text-align: center; margin: 30px 0;">
+        <a href="#" class="action-button" style="background: linear-gradient(135deg, #17a2b8 0%, #6c757d 100%);">
+            浏览更多新书
+        </a>
+    </p>
+
+    <p>祝您阅读愉快，发现更多精彩内容！</p>
+{% endblock %}

@@ -1,20 +1,79 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>即将到期提醒</title>
-</head>
-<body>
-    <h2>【即将到期提醒】</h2>
-    <p>尊敬的 {{ user.username }}：</p>
-    <p>您借阅的以下图书即将到期：</p>
-    <ul>
-        <li><strong>书名：</strong>{{ book.title }}</li>
-        <li><strong>作者：</strong>{{ book.author }}</li>
-        <li><strong>应还日期：</strong>{{ due_date }}</li>
-        <li><strong>剩余天数：</strong>{{ days_left }}天</li>
-    </ul>
-    <p>请合理安排时间归还，感谢您的配合！</p>
-    <p>此致<br>图书管理系统</p>
-</body>
-</html>
+{% extends 'emails/email_base.html' %}
+
+{% block title %}【即将到期】{{ book.title }} 还有 {{ days_left }} 天到期{% endblock %}
+
+{% block header_title %}⏰ 图书即将到期提醒{% endblock %}
+
+{% block subtitle %}温馨提醒：请及时归还或续借{% endblock %}
+
+{% block content %}
+    {% if days_left == 1 %}
+    <div class="danger-box">
+        <strong>🚨 紧急提醒：您的图书明天就要到期了！</strong>
+    </div>
+    {% else %}
+    <div class="warning-box">
+        <strong>⏰ 温馨提醒：您的图书还有 {{ days_left }} 天到期</strong>
+    </div>
+    {% endif %}
+
+    <p>为了确保您能顺利归还图书，避免逾期产生的不便，请关注以下借阅信息：</p>
+
+    <div class="info-card" style="border-left-color: #ffc107; background-color: #fff3cd20;">
+        <div class="book-title" style="color: #856404;">📚 {{ book.title }}</div>
+
+        <div class="info-item">
+            <span class="info-label">作者：</span>
+            <span class="info-value">{{ book.author }}</span>
+        </div>
+
+        {% if book.publisher %}
+        <div class="info-item">
+            <span class="info-label">出版社：</span>
+            <span class="info-value">{{ book.publisher }}</span>
+        </div>
+        {% endif %}
+
+        <div class="info-item">
+            <span class="info-label">应还日期：</span>
+            <span class="info-value" style="color: #856404; font-weight: bold;">{{ due_date }}</span>
+        </div>
+
+        <div class="info-item">
+            <span class="info-label">剩余时间：</span>
+            <span class="info-value" style="{% if days_left == 1 %}color: #dc3545;{% else %}color: #ffc107;{% endif %} font-weight: bold;">
+                {{ days_left }} 天
+            </span>
+        </div>
+
+        {% if book.location %}
+        <div class="info-item">
+            <span class="info-label">图书位置：</span>
+            <span class="info-value">{{ book.location }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="success-box">
+        <strong>💡 操作建议：</strong><br>
+        {% if days_left == 1 %}
+        • 请务必在明天之前归还图书<br>
+        • 如需继续阅读，请立即申请续借<br>
+        • 可通过在线系统或到图书馆办理续借
+        {% else %}
+        • 请提前安排阅读计划<br>
+        • 如需续借，请提前在系统中申请<br>
+        • 续借申请应在到期前3天提交
+        {% endif %}
+    </div>
+
+    {% if days_left > 1 %}
+    <p style="text-align: center; margin: 30px 0;">
+        <a href="#" class="action-button" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+            立即申请续借
+        </a>
+    </p>
+    {% endif %}
+
+    <p>感谢您对图书管理工作的配合，祝您阅读愉快！</p>
+{% endblock %}

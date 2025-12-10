@@ -60,11 +60,17 @@ def send_return_confirmation_email(borrow_record, retry_count=3):
     subject = f'图书归还确认 - 《{borrow_record.book.title}》'
     # 获取归还日期，处理可能为None的情况
     return_date_str = borrow_record.return_date.strftime('%Y-%m-%d') if borrow_record.return_date else timezone.now().strftime('%Y-%m-%d')
+    # 计算借阅时长
+    borrow_date = borrow_record.borrow_date.date()
+    return_date = borrow_record.return_date.date() if borrow_record.return_date else timezone.now().date()
+    borrow_duration = (return_date - borrow_date).days
+
     context = {
         'user': borrow_record.user,
         'book': borrow_record.book,
         'borrow_date': borrow_record.borrow_date.strftime('%Y-%m-%d'),
         'return_date': return_date_str,
+        'borrow_duration': borrow_duration,
     }
     html_message = render_to_string('emails/return_confirmation.html', context)
     plain_message = strip_tags(html_message)
@@ -157,3 +163,120 @@ def check_and_send_reminders():
             if due_date == today or due_date == tomorrow or due_date == three_days_later:
                 days_left = (due_date - today).days
                 send_due_soon_reminder_email(record, days_left)
+
+
+def send_welcome_email(user, retry_count=3):
+    """发送欢迎邮件给新注册用户"""
+    if not user.email:
+        logger.warning(f"用户{user.username}没有邮箱地址，跳过欢迎邮件")
+        return False
+
+    subject = '欢迎加入图书管理系统'
+    context = {
+        'user': user,
+    }
+    html_message = render_to_string('emails/welcome_email.html', context)
+    plain_message = strip_tags(html_message)
+
+    for attempt in range(retry_count):
+        try:
+            with get_connection(fail_silently=False) as connection:
+                send_mail(
+                    subject,
+                    plain_message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [user.email],
+                    html_message=html_message,
+                    connection=connection
+                )
+
+            logger.info(f"欢迎邮件发送成功: {user.email}")
+            return True
+
+        except Exception as e:
+            logger.warning(f"欢迎邮件发送失败 (尝试{attempt+1}/{retry_count}): {str(e)}")
+            if attempt < retry_count - 1:
+                time.sleep(2 * (attempt + 1))
+
+    logger.error(f"欢迎邮件发送最终失败: {user.email}")
+    return False
+
+
+def send_new_book_recommendation_email(user, books, retry_count=3):
+    """发送新书推荐邮件"""
+    if not user.email:
+        logger.warning(f"用户{user.username}没有邮箱地址，跳过新书推荐邮件")
+        return False
+
+    if not books:
+        logger.warning(f"没有可推荐的图书，跳过推荐邮件发送")
+        return False
+
+    subject = f'📚 新书推荐 - {len(books)}本精选图书为您而来'
+    context = {
+        'user': user,
+        'books': books,
+    }
+    html_message = render_to_string('emails/new_book_recommendation.html', context)
+    plain_message = strip_tags(html_message)
+
+    for attempt in range(retry_count):
+        try:
+            with get_connection(fail_silently=False) as connection:
+                send_mail(
+                    subject,
+                    plain_message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [user.email],
+                    html_message=html_message,
+                    connection=connection
+                )
+
+            logger.info(f"新书推荐邮件发送成功: {user.email}")
+            return True
+
+        except Exception as e:
+            logger.warning(f"新书推荐邮件发送失败 (尝试{attempt+1}/{retry_count}): {str(e)}")
+            if attempt < retry_count - 1:
+                time.sleep(2 * (attempt + 1))
+
+    logger.error(f"新书推荐邮件发送最终失败: {user.email}")
+    return False
+
+
+def send_password_reset_email(user, reset_link, retry_count=3):
+    """发送密码重置邮件"""
+    if not user.email:
+        logger.warning(f"用户{user.username}没有邮箱地址，跳过密码重置邮件")
+        return False
+
+    subject = '🔐 密码重置请求'
+    context = {
+        'user': user,
+        'reset_link': reset_link,
+    }
+    html_message = render_to_string('emails/password_reset.html', context)
+    plain_message = strip_tags(html_message)
+
+    for attempt in range(retry_count):
+        try:
+            with get_connection(fail_silently=False) as connection:
+                send_mail(
+                    subject,
+                    plain_message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [user.email],
+                    html_message=html_message,
+                    connection=connection
+                )
+
+            logger.info(f"密码重置邮件发送成功: {user.email}")
+            return True
+
+        except Exception as e:
+            logger.warning(f"密码重置邮件发送失败 (尝试{attempt+1}/{retry_count}): {str(e)}")
+            if attempt < retry_count - 1:
+                time.sleep(2 * (attempt + 1))
+
+    logger.error(f"密码重置邮件发送最终失败: {user.email}")
+    return False
