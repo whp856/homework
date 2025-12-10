@@ -162,7 +162,6 @@ def book_list(request):
             'error_message': "分页功能暂时不可用，显示前12条记录"
         })
 
-@login_required
 @cache_query(timeout=600, namespace='books')
 def get_book_detail_data(book_id, user_id=None):
     """获取图书详情数据的缓存函数"""
@@ -183,6 +182,7 @@ def get_book_detail_data(book_id, user_id=None):
         'user_borrow_records': user_borrow_records
     }
 
+@login_required
 def book_detail(request, book_id):
     """图书详情视图，使用缓存优化"""
     cache_key = get_cache_key_with_params(CACHE_KEY_BOOK_DETAIL, book_id=book_id)
@@ -193,11 +193,11 @@ def book_detail(request, book_id):
         return get_cache_key_with_params(CACHE_KEY_BOOK_DETAIL, book_id=book_id, user_id=user_id)
 
     # 获取缓存数据或执行查询
-    data = cache.get(key_func(), namespace='books')
+    data = cache.get(key_func())
     if data is None:
         user_id = request.user.id if request.user.is_authenticated else None
         data = get_book_detail_data(book_id, user_id)
-        cache.set(key_func(), data, timeout=600, namespace='books')  # 10分钟缓存
+        cache.set(key_func(), data, timeout=600)  # 10分钟缓存
 
     return render(request, 'books/book_detail.html', data)
 
