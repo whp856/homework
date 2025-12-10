@@ -505,7 +505,9 @@ def my_reservations(request):
     page_obj = paginator.get_page(page_number)
 
     return render(request, 'borrowing/my_reservations.html', {
-        'page_obj': page_obj
+        'page_obj': page_obj,
+        'reservations': page_obj,
+        'is_paginated': page_obj.has_other_pages()
     })
 
 
@@ -563,7 +565,14 @@ def reservation_list(request):
     page_obj = paginator.get_page(page_number)
 
     return render(request, 'borrowing/reservation_list.html', {
-        'page_obj': page_obj
+        'page_obj': page_obj,
+        'reservations_by_book': reservations_by_book,
+        'total_reservations': reservations.count(),
+        'pending_count': reservations.filter(status='pending').count(),
+        'available_count': reservations.filter(status='available').count(),
+        'cancelled_count': reservations.filter(status='cancelled').count(),
+        'completed_count': reservations.filter(status='completed').count(),
+        'expired_count': reservations.filter(status='expired').count(),
     })
 
 

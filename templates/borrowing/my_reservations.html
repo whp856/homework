@@ -17,7 +17,7 @@
             {% endfor %}
             {% endif %}
 
-            {% if reservations %}
+            {% if page_obj %}
             <table class="table table-striped">
                 <thead>
                     <tr>
@@ -31,7 +31,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for reservation in reservations %}
+                    {% for reservation in page_obj %}
                     <tr>
                         <td><a href="{% url 'books:book_detail' reservation.book.id %}">{{ reservation.book.title }}</a></td>
                         <td>{{ reservation.reservation_date|date:"Y-m-d H:i" }}</td>

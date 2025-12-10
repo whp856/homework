@@ -105,7 +105,7 @@
             </div>
 
             <!-- 预约列表 -->
-            {% if reservations %}
+            {% if page_obj %}
             <table class="table table-striped">
                 <thead>
                     <tr>
@@ -120,7 +120,8 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for reservation in reservations %}
+                    {% for book_group in page_obj %}
+                        {% for reservation in book_group.reservations %}
                     <tr>
                         <td><a href="{% url 'books:book_detail' reservation.book.id %}">{{ reservation.book.title }}</a></td>
                         <td><a href="{% url 'accounts:user_detail' reservation.user.id %}">{{ reservation.user.username }}</a></td>
@@ -177,6 +178,7 @@
                             </div>
                         </td>
                     </tr>
+                        {% endfor %}
                     {% endfor %}
                 </tbody>
             </table>
