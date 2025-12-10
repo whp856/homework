@@ -70,6 +70,10 @@
                             管理员功能
                         </a>
                         <div class="dropdown-menu" aria-labelledby="adminDropdown">
+                            <a class="dropdown-item" href="{% url 'books:book_create' %}">
+                                <i class="bi bi-plus-circle"></i> 添加图书
+                            </a>
+                            <div class="dropdown-divider"></div>
                             <a class="dropdown-item" href="{% url 'accounts:user_list' %}">用户管理</a>
                             <a class="dropdown-item" href="{% url 'borrowing:record_list' %}">所有借阅记录</a>
                             <a class="dropdown-item" href="{% url 'borrowing:reservation_list' %}">预约管理</a>
