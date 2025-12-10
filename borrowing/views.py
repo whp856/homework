@@ -15,7 +15,10 @@ from django.http import HttpResponse
 import pandas as pd
 from datetime import datetime
 import logging
-from library_management.cache import cache, CACHE_KEY_HOME_STATS, CACHE_KEY_CATEGORIES, CACHE_KEY_PAGINATED_BOOKS
+from library_management.cache import (
+    cache, CACHE_KEY_HOME_STATS, CACHE_KEY_BORROW_STATS, CACHE_KEY_USER_BORROW_RECORDS,
+    cache_query, get_cache_key_with_params, invalidate_user_cache, invalidate_book_cache
+)
 
 # 添加邮件相关导入
 from .emails import send_borrow_confirmation_email, send_return_confirmation_email

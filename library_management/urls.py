@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 from books import views as books_views  # 添加这行导入
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
+from . import views as cache_views
 
 def welcome(request):
     """公开的欢迎页面，展示系统介绍"""
@@ -17,6 +18,11 @@ urlpatterns = [
     path('categories/', include('categories.urls')),
     path('borrowing/', include('borrowing.urls')),
     path('reviews/', include('reviews.urls')),
+    path('cache/', include([
+        path('stats/', cache_views.cache_stats, name='cache_stats'),
+        path('inspector/', cache_views.cache_inspector, name='cache_inspector'),
+        path('health/', cache_views.cache_health_check, name='cache_health'),
+    ])),
     path('', welcome, name='welcome'),  # 新的欢迎页面
     path('home/', login_required(books_views.home), name='home'),  # 需要登录的主页
 ]

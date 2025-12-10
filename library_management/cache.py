@@ -252,7 +252,7 @@ class EnhancedCache:
     def set_many(self, data: Dict[Any, Any], timeout: Optional[int] = None, namespace: Optional[str] = None) -> None:
         """
         批量设置缓存
-        
+
         Args:
             data: 键值对字典
             timeout: 过期时间
@@ -260,6 +260,118 @@ class EnhancedCache:
         """
         for key, value in data.items():
             self.set(key, value, timeout, namespace)
+
+# 缓存装饰器和辅助函数
+def cache_result(key_func=None, timeout=None, namespace=None):
+    """
+    缓存函数结果的装饰器
+
+    Args:
+        key_func: 生成缓存键的函数，接收函数的参数
+        timeout: 过期时间
+        namespace: 命名空间
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            # 生成缓存键
+            if key_func:
+                cache_key = key_func(*args, **kwargs)
+            else:
+                cache_key = f"{func.__name__}_{hash(str(args) + str(sorted(kwargs.items())))}"
+
+            # 尝试从缓存获取
+            cached_result = cache.get(cache_key, namespace=namespace)
+            if cached_result is not None:
+                return cached_result
+
+            # 执行函数并缓存结果
+            result = func(*args, **kwargs)
+            cache.set(cache_key, result, timeout, namespace)
+            return result
+
+        return wrapper
+    return decorator
+
+def cache_query(timeout=None, namespace='query'):
+    """
+    缓存数据库查询结果的装饰器
+
+    Args:
+        timeout: 过期时间，默认15分钟
+        namespace: 命名空间
+    """
+    return cache_result(timeout=timeout or 900, namespace=namespace)
+
+def invalidate_user_cache(user_id):
+    """
+    清除与特定用户相关的所有缓存
+
+    Args:
+        user_id: 用户ID
+    """
+    patterns = [
+        f"user_stats:{user_id}",
+        f"user_borrow_records:{user_id}",
+        f"user_recommendations:{user_id}",
+    ]
+
+    for pattern in patterns:
+        cache.delete(pattern, namespace='user')
+
+def invalidate_book_cache(book_id):
+    """
+    清除与特定图书相关的所有缓存
+
+    Args:
+        book_id: 图书ID
+    """
+    patterns = [
+        f"book_detail:{book_id}",
+        f"popular_books",
+        f"recent_books",
+        f"home_stats",
+        f"book_list",
+        f"category_stats",
+    ]
+
+    for pattern in patterns:
+        cache.delete(pattern, namespace='books')
+
+def invalidate_category_cache(category_id):
+    """
+    清除与特定分类相关的所有缓存
+
+    Args:
+        category_id: 分类ID
+    """
+    patterns = [
+        f"category_stats:{category_id}",
+        f"categories",
+        f"home_stats",
+        f"book_list",
+    ]
+
+    for pattern in patterns:
+        cache.delete(pattern, namespace='categories')
+
+def get_cache_key_with_params(base_key, **params):
+    """
+    生成带参数的缓存键
+
+    Args:
+        base_key: 基础键名
+        **params: 参数
+
+    Returns:
+        缓存键
+    """
+    if not params:
+        return base_key
+
+    # 对参数进行排序以确保一致性
+    sorted_params = sorted(params.items())
+    param_str = "_".join(f"{k}_{v}" for k, v in sorted_params)
+    return f"{base_key}_{param_str}"
 
 
 # 在文件开头添加
@@ -279,3 +391,16 @@ CACHE_KEY_AVAILABLE_COUNT = 'available_count'
 CACHE_KEY_PAGINATED_BOOKS = 'paginated_books'
 CACHE_KEY_BOOK_LIST = 'cached_book_list'
 CACHE_KEY_CATEGORY_LIST = 'cached_category_list'
+
+# 新增缓存键
+CACHE_KEY_POPULAR_BOOKS = 'popular_books'
+CACHE_KEY_RECENT_BOOKS = 'recent_books'
+CACHE_KEY_USER_STATS = 'user_stats'
+CACHE_KEY_BORROW_STATS = 'borrow_stats'
+CACHE_KEY_USER_BORROW_RECORDS = 'user_borrow_records'
+CACHE_KEY_USER_RECOMMENDATIONS = 'user_recommendations'
+CACHE_KEY_BOOK_DETAIL = 'book_detail'
+CACHE_KEY_CATEGORY_STATS = 'category_stats'
+CACHE_KEY_SEARCH_RESULTS = 'search_results'
+CACHE_KEY_ADMIN_DASHBOARD = 'admin_dashboard'
+CACHE_KEY_REVIEWS_STATS = 'reviews_stats'
