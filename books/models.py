@@ -124,11 +124,15 @@ class Book(models.Model):
             if updated_book.available_copies > 0:
                 updated_book.status = 'available'
                 updated_book.save()
-            
+
+                # 如果有预约队列，处理预约通知
+                from borrowing.models import BookReservation
+                BookReservation.process_available_book(updated_book)
+
             # 清除缓存
             cache.delete(CACHE_KEY_HOME_STATS)
             cache.delete(CACHE_KEY_BOOK_LIST)
-            
+
             return True
         except Exception:
             return False

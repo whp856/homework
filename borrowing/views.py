@@ -9,7 +9,7 @@ from django.db import transaction
 from django.db.models import F
 from accounts.models import CustomUser
 from books.models import Book  # 将Book模型导入移到开头
-from .models import BorrowRecord
+from .models import BorrowRecord, BookReservation
 from .forms import BorrowRecordForm
 from django.http import HttpResponse
 import pandas as pd
@@ -423,3 +423,250 @@ def export_my_borrow_records(request):
         messages.error(request, f'导出过程中出现错误：{str(e)}')
         logger.error(f"用户{request.user.username}导出个人借阅记录失败: {str(e)}", exc_info=True)
         return redirect('borrowing:my_records')
+
+
+# ==================== 图书预约排队功能 ====================
+
+@login_required
+@transaction.atomic
+def reserve_book(request, book_id):
+    """处理图书预约请求"""
+    try:
+        # 使用select_for_update锁定图书记录
+        book = Book.objects.select_for_update().get(id=book_id)
+
+        # 检查图书是否可借阅（如果可借阅，提示直接借阅）
+        if book.available_copies > 0:
+            messages.info(request, '该图书当前可借阅，请直接借阅，无需预约。')
+            return redirect('books:book_detail', book_id=book.id)
+
+        # 检查用户是否已经预约了这本书
+        existing_reservation = BookReservation.objects.filter(
+            user=request.user,
+            book=book,
+            status='pending'
+        ).first()
+
+        if existing_reservation:
+            messages.info(request, '您已经预约了这本图书，请勿重复预约。')
+            return redirect('borrowing:my_reservations')
+
+        # 检查用户是否已经借阅了这本书
+        existing_borrow = BorrowRecord.objects.filter(
+            user=request.user,
+            book=book,
+            status__in=['borrowed', 'overdue']
+        ).first()
+
+        if existing_borrow:
+            messages.info(request, '您已经借阅了这本书，无需预约。')
+            return redirect('borrowing:my_records')
+
+        # 创建预约记录
+        reservation = BookReservation.objects.create(
+            user=request.user,
+            book=book,
+            priority=2 if request.user.is_admin else 1  # 管理员优先级更高
+        )
+
+        # 计算队列位置
+        queue_position = reservation.queue_position
+
+        messages.success(
+            request,
+            f'预约成功！您在《{book.title}》预约队列中排第{queue_position}位。'
+        )
+        logger.info(f"用户{request.user.username}成功预约图书{book.title}(ID:{book.id})，队列位置：{queue_position}")
+
+        return redirect('borrowing:my_reservations')
+
+    except Book.DoesNotExist:
+        messages.error(request, '图书不存在。')
+        return redirect('books:book_list')
+    except Exception as e:
+        error_msg = f'预约过程中出现错误：{str(e)}'
+        messages.error(request, error_msg)
+        logger.error(f"用户{request.user.username}预约图书(ID:{book_id})过程中出错: {str(e)}", exc_info=True)
+        return redirect('books:book_detail', book_id=book_id)
+
+
+@login_required
+def my_reservations(request):
+    """显示用户的预约列表"""
+    # 首先更新过期预约状态
+    BookReservation.cancel_expired_reservations()
+
+    reservations = BookReservation.objects.filter(
+        user=request.user
+    ).select_related('book').order_by('-created_at')
+
+    paginator = Paginator(reservations, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'borrowing/my_reservations.html', {
+        'page_obj': page_obj
+    })
+
+
+@login_required
+@transaction.atomic
+def cancel_reservation(request, reservation_id):
+    """取消预约"""
+    try:
+        reservation = BookReservation.objects.get(
+            id=reservation_id,
+            user=request.user,
+            status='pending'
+        )
+
+        book_title = reservation.book.title
+        reservation.cancel_reservation()
+
+        messages.success(request, f'已取消《{book_title}》的预约。')
+        logger.info(f"用户{request.user.username}取消预约图书{book_title}")
+
+        return redirect('borrowing:my_reservations')
+
+    except BookReservation.DoesNotExist:
+        messages.error(request, '预约不存在或无法取消。')
+        return redirect('borrowing:my_reservations')
+    except Exception as e:
+        error_msg = f'取消预约过程中出现错误：{str(e)}'
+        messages.error(request, error_msg)
+        logger.error(f"用户{request.user.username}取消预约(ID:{reservation_id})过程中出错: {str(e)}", exc_info=True)
+        return redirect('borrowing:my_reservations')
+
+
+@user_passes_test(is_admin)
+def reservation_list(request):
+    """管理员查看所有预约列表"""
+    # 首先更新过期预约状态
+    BookReservation.cancel_expired_reservations()
+
+    reservations = BookReservation.objects.select_related(
+        'user', 'book'
+    ).order_by('book', 'priority', 'reservation_date')
+
+    # 按图书分组显示
+    reservations_by_book = {}
+    for reservation in reservations:
+        if reservation.book.id not in reservations_by_book:
+            reservations_by_book[reservation.book.id] = {
+                'book': reservation.book,
+                'reservations': []
+            }
+        reservations_by_book[reservation.book.id]['reservations'].append(reservation)
+
+    paginator = Paginator(list(reservations_by_book.values()), 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'borrowing/reservation_list.html', {
+        'page_obj': page_obj
+    })
+
+
+@login_required
+@transaction.atomic
+def borrow_from_reservation(request, reservation_id):
+    """从预约直接借阅图书"""
+    try:
+        # 获取预约记录并锁定
+        reservation = BookReservation.objects.select_for_update().get(
+            id=reservation_id,
+            user=request.user,
+            status='available'
+        )
+
+        # 锁定图书记录
+        book = Book.objects.select_for_update().get(id=reservation.book.id)
+
+        # 检查图书是否可借阅
+        if not book.can_borrow():
+            messages.error(request, '该图书当前不可借阅。')
+            return redirect('borrowing:my_reservations')
+
+        # 计算应还时间
+        due_date = timezone.now() + timedelta(
+            days=60 if request.user.is_admin else 30
+        )
+
+        # 原子性操作：借阅图书并更新预约状态
+        with transaction.atomic():
+            # 更新图书状态
+            if not book.borrow_book():
+                raise Exception('图书状态更新失败')
+
+            # 创建借阅记录
+            borrow_record = BorrowRecord.objects.create(
+                user=request.user,
+                book=book,
+                due_date=due_date,
+                status='borrowed'
+            )
+
+            # 更新预约状态
+            reservation.status = 'completed'
+            reservation.save()
+
+            # 通知下一个等待的用户
+            BookReservation.process_available_book(book)
+
+        # 发送借阅确认邮件
+        if request.user.email:
+            try:
+                from .emails import send_borrow_confirmation_email
+                send_borrow_confirmation_email(borrow_record)
+            except Exception as e:
+                logger.error(f"发送借阅确认邮件失败: {str(e)}")
+
+        messages.success(
+            request,
+            f'成功借阅《{book.title}》，请于{due_date.strftime("%Y-%m-%d")}前归还。'
+        )
+        logger.info(f"用户{request.user.username}从预约成功借阅图书{book.title}")
+
+        return redirect('borrowing:my_records')
+
+    except BookReservation.DoesNotExist:
+        messages.error(request, '预约不存在或状态不正确。')
+        return redirect('borrowing:my_reservations')
+    except Book.DoesNotExist:
+        messages.error(request, '图书不存在。')
+        return redirect('borrowing:my_reservations')
+    except Exception as e:
+        error_msg = f'从预约借阅过程中出现错误：{str(e)}'
+        messages.error(request, error_msg)
+        logger.error(f"用户{request.user.username}从预约借阅(ID:{reservation_id})过程中出错: {str(e)}", exc_info=True)
+        return redirect('borrowing:my_reservations')
+
+
+@user_passes_test(is_admin)
+def manage_reservation_priority(request, reservation_id):
+    """管理员调整预约优先级"""
+    if request.method == 'POST':
+        try:
+            reservation = BookReservation.objects.get(id=reservation_id)
+            new_priority = int(request.POST.get('priority', 1))
+
+            if new_priority in [1, 2, 3]:
+                old_priority = reservation.priority
+                reservation.priority = new_priority
+                reservation.save()
+
+                messages.success(
+                    request,
+                    f'已将《{reservation.book.title}》的预约优先级从{old_priority}调整为{new_priority}。'
+                )
+                logger.info(f"管理员{request.user.username}调整预约优先级，用户：{reservation.user.username}，图书：{reservation.book.title}，优先级：{old_priority}->{new_priority}")
+            else:
+                messages.error(request, '优先级值无效，必须为1、2或3。')
+
+        except BookReservation.DoesNotExist:
+            messages.error(request, '预约不存在。')
+        except Exception as e:
+            messages.error(request, f'调整优先级失败：{str(e)}')
+            logger.error(f"管理员{request.user.username}调整预约优先级失败: {str(e)}", exc_info=True)
+
+    return redirect('borrowing:reservation_list')

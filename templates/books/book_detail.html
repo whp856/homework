@@ -59,9 +59,26 @@
                         {% endif %}
                     </form>
                     {% else %}
-                    <button class="btn btn-secondary" disabled>当前不可借阅</button>
-                    <!-- 添加查看评论按钮 -->
-                    <a href="{% url 'reviews:book_reviews' book.id %}" class="btn btn-secondary ml-2">查看评论</a>
+                    <div class="d-flex flex-column">
+                        <div class="mb-3">
+                            <button class="btn btn-secondary" disabled>当前不可借阅</button>
+                        </div>
+                        <div>
+                            <form method="post" action="{% url 'borrowing:reserve_book' book.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-warning">
+                                    <i class="bi bi-bookmark"></i> 预约此书
+                                </button>
+                            </form>
+                            <a href="{% url 'reviews:book_reviews' book.id %}" class="btn btn-secondary ml-2">查看评论</a>
+                            <a href="{% url 'borrowing:my_reservations' %}" class="btn btn-info ml-2">
+                                <i class="bi bi-list-check"></i> 我的预约
+                            </a>
+                        </div>
+                        <small class="text-muted mt-2">
+                            <i class="bi bi-info-circle"></i> 预约后，当图书可借阅时系统会自动通知您
+                        </small>
+                    </div>
                     {% endif %}
                 {% else %}
                 <a href="{% url 'accounts:login' %}" class="btn btn-primary">登录后借阅</a>

@@ -6,7 +6,7 @@ from django.core.mail import get_connection
 from django.conf import settings
 import time
 import logging
-from .models import BorrowRecord
+from .models import BorrowRecord, BookReservation
 
 logger = logging.getLogger(__name__)
 
@@ -279,4 +279,58 @@ def send_password_reset_email(user, reset_link, retry_count=3):
                 time.sleep(2 * (attempt + 1))
 
     logger.error(f"密码重置邮件发送最终失败: {user.email}")
+    return False
+
+
+def send_reservation_available_email(reservation, retry_count=3):
+    """发送预约可用通知邮件"""
+    if not reservation.user.email:
+        logger.warning(f"用户{reservation.user.username}没有邮箱地址，跳过预约可用通知邮件")
+        return False
+
+    # 计算剩余时间（24小时）
+    from datetime import timedelta
+    expiry_time = reservation.expiry_date
+    time_left = expiry_time - timezone.now()
+    hours_left = max(0, int(time_left.total_seconds() / 3600))
+
+    subject = f'【可借阅】您预约的《{reservation.book.title}》现已可借阅'
+    context = {
+        'user': reservation.user,
+        'book': reservation.book,
+        'reservation': reservation,
+        'reservation_date': reservation.reservation_date,
+        'queue_position': reservation.queue_position or 1,
+        'expiry_date': expiry_time,
+        'hours_left': hours_left,
+        'library_phone': getattr(settings, 'LIBRARY_PHONE', '未设置'),
+        'library_email': getattr(settings, 'LIBRARY_EMAIL', '未设置'),
+        'library_hours': getattr(settings, 'LIBRARY_HOURS', '周一至周五 8:00-17:00'),
+    }
+
+    html_message = render_to_string('emails/reservation_available.html', context)
+    plain_message = strip_tags(html_message)
+
+    for attempt in range(retry_count):
+        try:
+            # 使用连接池发送邮件
+            with get_connection(fail_silently=False) as connection:
+                send_mail(
+                    subject,
+                    plain_message,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [reservation.user.email],
+                    html_message=html_message,
+                    connection=connection
+                )
+
+            logger.info(f"预约可用通知邮件发送成功: {reservation.user.email}")
+            return True
+
+        except Exception as e:
+            logger.warning(f"预约可用通知邮件发送失败 (尝试{attempt+1}/{retry_count}): {str(e)}")
+            if attempt < retry_count - 1:
+                time.sleep(2 * (attempt + 1))
+
+    logger.error(f"预约可用通知邮件发送最终失败: {reservation.user.email}")
     return False

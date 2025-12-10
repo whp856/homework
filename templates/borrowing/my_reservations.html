@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+
+{% block title %}我的预约记录 - 图书管理系统{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h2>我的预约记录</h2>
+        </div>
+        <div class="card-body">
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}" role="alert">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% if reservations %}
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>图书名称</th>
+                        <th>预约日期</th>
+                        <th>优先级</th>
+                        <th>队列位置</th>
+                        <th>状态</th>
+                        <th>过期时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reservation in reservations %}
+                    <tr>
+                        <td><a href="{% url 'books:book_detail' reservation.book.id %}">{{ reservation.book.title }}</a></td>
+                        <td>{{ reservation.reservation_date|date:"Y-m-d H:i" }}</td>
+                        <td>
+                            {% if reservation.priority == 1 %}
+                                <span class="badge badge-info">普通</span>
+                            {% elif reservation.priority == 2 %}
+                                <span class="badge badge-warning">优先</span>
+                            {% elif reservation.priority == 3 %}
+                                <span class="badge badge-danger">高优先级</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if reservation.queue_position %}
+                                <span class="badge badge-primary">第 {{ reservation.queue_position }} 位</span>
+                            {% else %}
+                                <span class="badge badge-secondary">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if reservation.status == 'pending' %}
+                                <span class="badge badge-warning">等待中</span>
+                            {% elif reservation.status == 'available' %}
+                                <span class="badge badge-success">可借阅</span>
+                            {% elif reservation.status == 'cancelled' %}
+                                <span class="badge badge-secondary">已取消</span>
+                            {% elif reservation.status == 'completed' %}
+                                <span class="badge badge-info">已完成</span>
+                            {% elif reservation.status == 'expired' %}
+                                <span class="badge badge-danger">已过期</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if reservation.is_expired %}
+                                <span class="text-danger">已过期</span>
+                            {% else %}
+                                {{ reservation.expiry_date|date:"Y-m-d" }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if reservation.status == 'pending' %}
+                            <form method="post" action="{% url 'borrowing:cancel_reservation' reservation.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('确定要取消这个预约吗？')">
+                                    取消预约
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% if reservation.status == 'available' %}
+                            <a href="{% url 'borrowing:borrow_from_reservation' reservation.id %}" class="btn btn-success btn-sm">
+                                立即借阅
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <!-- 分页控件 -->
+            {% if is_paginated %}
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% else %}
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                    {% endif %}
+                    {% endfor %}
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+            {% else %}
+            <div class="alert alert-info" role="alert">
+                暂无预约记录
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

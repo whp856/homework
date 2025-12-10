@@ -13,4 +13,12 @@ urlpatterns = [
     path('<int:record_id>/delete/', views.delete_borrow_record, name='delete_record'),
     path('export/all/', views.export_borrow_records, name='export_all_records'),  # 添加所有记录导出URL
     path('export/my/', views.export_my_borrow_records, name='export_my_records'),  # 添加个人记录导出URL
+
+    # 图书预约相关URL
+    path('reserve/<int:book_id>/', views.reserve_book, name='reserve_book'),
+    path('my-reservations/', views.my_reservations, name='my_reservations'),
+    path('cancel-reservation/<int:reservation_id>/', views.cancel_reservation, name='cancel_reservation'),
+    path('borrow-from-reservation/<int:reservation_id>/', views.borrow_from_reservation, name='borrow_from_reservation'),
+    path('reservations/', views.reservation_list, name='reservation_list'),
+    path('manage-reservation-priority/<int:reservation_id>/', views.manage_reservation_priority, name='manage_reservation_priority'),
 ]

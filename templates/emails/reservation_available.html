@@ -1,0 +1,89 @@
+{% extends 'emails/email_base.html' %}
+
+{% block title %}【可借阅】您预约的《{{ book.title }}》现已可借阅{% endblock %}
+
+{% block header_title %}🎉 图书预约可借阅通知{% endblock %}
+
+{% block subtitle %}您预约的图书现在可以借阅了！{% endblock %}
+
+{% block content %}
+    <div class="success-box">
+        <strong>🎉 好消息！您预约的图书现已可借阅</strong>
+    </div>
+
+    <p>您预约的图书现在已经可以借阅，请及时到图书馆办理借阅手续。以下是图书详细信息：</p>
+
+    <div class="info-card" style="border-left-color: #28a745; background-color: #d4edda20;">
+        <div class="book-title" style="color: #155724;">📚 {{ book.title }}</div>
+
+        <div class="info-item">
+            <span class="info-label">作者：</span>
+            <span class="info-value">{{ book.author }}</span>
+        </div>
+
+        {% if book.publisher %}
+        <div class="info-item">
+            <span class="info-label">出版社：</span>
+            <span class="info-value">{{ book.publisher }}</span>
+        </div>
+        {% endif %}
+
+        <div class="info-item">
+            <span class="info-label">预约日期：</span>
+            <span class="info-value">{{ reservation_date|date:"Y年m月d日 H:i" }}</span>
+        </div>
+
+        <div class="info-item">
+            <span class="info-label">队列位置：</span>
+            <span class="info-value" style="color: #155724; font-weight: bold;">第 {{ queue_position }} 位</span>
+        </div>
+
+        {% if book.location %}
+        <div class="info-item">
+            <span class="info-label">图书位置：</span>
+            <span class="info-value">{{ book.location }}</span>
+        </div>
+        {% endif %}
+
+        <div class="info-item">
+            <span class="info-label">剩余时间：</span>
+            <span class="info-value" style="color: #dc3545; font-weight: bold;">
+                {{ hours_left }} 小时内
+            </span>
+        </div>
+    </div>
+
+    <div class="warning-box">
+        <strong>⏰ 重要提醒：</strong><br>
+        • 请在 <strong>{{ expiry_date|date:"Y年m月d日 H:i" }}</strong> 前来借阅<br>
+        • 超时未借阅，预约将自动取消<br>
+        • 请携带本人借书证或身份证件<br>
+        • 到图书馆服务台说明已收到预约通知
+    </div>
+
+    <div class="info-box">
+        <strong>📍 借阅指南：</strong><br>
+        1. 携带有效证件到图书馆服务台<br>
+        2. 告知工作人员您已收到预约可借阅通知<br>
+        3. 工作人员将为您办理借阅手续<br>
+        4. 借阅期限为借阅当天起算 30 天<br>
+        5. 可通过在线系统查看借阅记录和应还日期
+    </div>
+
+    <p style="text-align: center; margin: 30px 0;">
+        <a href="#" class="action-button" style="background: linear-gradient(135deg, #007bff 0%, #28a745 100%);">
+            查看我的预约记录
+        </a>
+    </p>
+
+    <p>感谢您使用图书预约系统，祝您阅读愉快！</p>
+
+    <hr style="margin: 30px 0; border: none; border-top: 1px solid #e9ecef;">
+
+    <div style="text-align: center; color: #6c757d; font-size: 14px;">
+        <p>如需帮助，请联系图书馆服务台</p>
+        <p>📞 服务电话：{{ library_phone|default:"未设置" }}</p>
+        <p>📧 服务邮箱：{{ library_email|default:"未设置" }}</p>
+        <p>🕐 服务时间：{{ library_hours|default:"周一至周五 8:00-17:00" }}</p>
+    </div>
+{% endblock %}
