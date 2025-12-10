@@ -42,9 +42,9 @@
     </div>
     
     <!-- 图书列表 -->
-    {% if page_obj %}
+    {% if object_list %}
     <div class="row">
-        {% for book in page_obj %}
+        {% for book in object_list %}
         {% if book.id %}
         <div class="col-md-3 mb-4">
             <div class="card book-card">
@@ -95,7 +95,7 @@
         <div class="col-md-6">
             <div class="d-flex align-items-center">
                 <span class="text-muted">
-                    显示第 {{ start_index|add:-object_list|length|add:1 }}-{{ end_index }} 条，
+                    显示第 {{ start_index }}-{{ end_index }} 条，
                     共 {{ total_items }} 条记录
                 </span>
             </div>
