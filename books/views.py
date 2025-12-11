@@ -366,16 +366,21 @@ def import_books(request):
 def import_books_excel(request):
     """处理Excel文件导入"""
     try:
+        logger.info(f"收到导入请求，用户: {request.user.username}")
+
         if 'excel_file' not in request.FILES:
+            logger.warning("请求中没有找到excel_file文件")
             return JsonResponse({
                 'success': False,
                 'message': '请选择要导入的Excel文件'
             })
 
         excel_file = request.FILES['excel_file']
+        logger.info(f"收到文件: {excel_file.name}, 大小: {excel_file.size} bytes")
 
         # 验证文件类型
         if not excel_file.name.endswith(('.xlsx', '.xls')):
+            logger.warning(f"文件类型错误: {excel_file.name}")
             return JsonResponse({
                 'success': False,
                 'message': '请上传Excel文件（.xlsx或.xls格式）'
@@ -383,23 +388,40 @@ def import_books_excel(request):
 
         # 验证文件大小（限制10MB）
         if excel_file.size > 10 * 1024 * 1024:
+            logger.warning(f"文件过大: {excel_file.size} bytes")
             return JsonResponse({
                 'success': False,
                 'message': '文件大小不能超过10MB'
             })
 
+        logger.info("开始处理Excel文件导入...")
+
         # 使用导入工具处理文件
         result = ExcelImporter.import_books_from_excel(excel_file)
 
+        logger.info(f"导入结果: {result}")
+
         if result['success']:
-            # 清除相关缓存
-            invalidate_book_cache()
+            # 清除相关缓存 - 清除所有图书相关的缓存
+            patterns_to_clear = [
+                "popular_books",
+                "recent_books",
+                "home_stats",
+                "book_list",
+                "category_stats",
+                "search_results",
+                "pagination_cache"
+            ]
+
+            for pattern in patterns_to_clear:
+                cache.delete(pattern, namespace='books')
 
             # 记录操作日志
             logger.info(f"管理员 {request.user.username} 成功导入 {result['imported_count']} 本图书")
 
             return JsonResponse(result)
         else:
+            logger.warning(f"导入失败: {result}")
             return JsonResponse(result)
 
     except Exception as e:
