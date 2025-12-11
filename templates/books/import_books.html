@@ -260,13 +260,34 @@ $(document).ready(function() {
         importResult.hide();
     }
 
+    // 获取CSRF token的函数
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
     // 表单提交
     importForm.on('submit', function(e) {
         e.preventDefault();
 
         const formData = new FormData();
         formData.append('excel_file', fileInput[0].files[0]);
-        formData.append('csrfmiddlewaretoken', $('[name=csrfmiddlewaretoken]').val());
+
+        // 添加CSRF token
+        const csrftoken = getCookie('csrftoken');
+        if (csrftoken) {
+            formData.append('csrfmiddlewaretoken', csrftoken);
+        }
 
         // 显示进度条
         progressContainer.show();
@@ -282,23 +303,6 @@ $(document).ready(function() {
             }
             $('#progressBar').css('width', progress + '%').text(progress + '%');
         }, 200);
-
-        // 获取CSRF token
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
-        }
-        const csrftoken = getCookie('csrftoken');
 
         // 发送请求
         $.ajax({
