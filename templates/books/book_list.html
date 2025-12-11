@@ -9,6 +9,9 @@
         <h2>图书列表</h2>
         {% if user.is_admin %}
         <div>
+            <a href="{% url 'books:import_books' %}" class="btn btn-warning">
+                <i class="fas fa-file-upload"></i> 导入图书
+            </a>
             <a href="{% url 'books:export_books' %}" class="btn btn-light">
                 <i class="bi bi-download"></i> 导出图书
             </a>

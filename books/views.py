@@ -3,7 +3,8 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.http import require_http_methods
 import pandas as pd
 from datetime import datetime
 import logging
@@ -17,7 +18,7 @@ from library_management.cache import (
     invalidate_book_cache
 )
 from library_management.pagination import get_paginated_books, get_pagination_context, PaginationCacheManager
-from library_management.excel_export import ExcelExporter
+from library_management.excel_export import ExcelExporter, ExcelImporter
 
 logger = logging.getLogger(__name__)
 
@@ -351,3 +352,73 @@ def export_statistics(request):
         logger.error(f"导出统计数据时出错: {str(e)}", exc_info=True)
         messages.error(request, f'导出失败: {str(e)}')
         return redirect('books:book_list')
+
+
+@login_required
+@user_passes_test(is_admin)
+def import_books(request):
+    """图书导入页面视图"""
+    return render(request, 'books/import_books.html')
+
+
+@login_required
+@user_passes_test(is_admin)
+def import_books_excel(request):
+    """处理Excel文件导入"""
+    try:
+        if 'excel_file' not in request.FILES:
+            return JsonResponse({
+                'success': False,
+                'message': '请选择要导入的Excel文件'
+            })
+
+        excel_file = request.FILES['excel_file']
+
+        # 验证文件类型
+        if not excel_file.name.endswith(('.xlsx', '.xls')):
+            return JsonResponse({
+                'success': False,
+                'message': '请上传Excel文件（.xlsx或.xls格式）'
+            })
+
+        # 验证文件大小（限制10MB）
+        if excel_file.size > 10 * 1024 * 1024:
+            return JsonResponse({
+                'success': False,
+                'message': '文件大小不能超过10MB'
+            })
+
+        # 使用导入工具处理文件
+        result = ExcelImporter.import_books_from_excel(excel_file)
+
+        if result['success']:
+            # 清除相关缓存
+            invalidate_book_cache()
+
+            # 记录操作日志
+            logger.info(f"管理员 {request.user.username} 成功导入 {result['imported_count']} 本图书")
+
+            return JsonResponse(result)
+        else:
+            return JsonResponse(result)
+
+    except Exception as e:
+        logger.error(f"导入图书时出错: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'message': f'导入失败: {str(e)}',
+            'imported_count': 0,
+            'errors': [f'系统错误: {str(e)}']
+        })
+
+
+@login_required
+@user_passes_test(is_admin)
+def download_import_template(request):
+    """下载图书导入模板"""
+    try:
+        return ExcelImporter.get_import_template()
+    except Exception as e:
+        logger.error(f"下载导入模板时出错: {str(e)}", exc_info=True)
+        messages.error(request, f'下载模板失败: {str(e)}')
+        return redirect('books:import_books')
