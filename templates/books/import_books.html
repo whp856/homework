@@ -1,0 +1,388 @@
+{% extends 'base.html' %}
+
+{% block title %}图书导入 - 图书管理{% endblock %}
+
+{% block extra_css %}
+<style>
+.upload-area {
+    border: 2px dashed #007bff;
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    background-color: #f8f9fa;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.upload-area:hover {
+    border-color: #0056b3;
+    background-color: #e9ecef;
+}
+
+.upload-area.dragover {
+    border-color: #28a745;
+    background-color: #d4edda;
+}
+
+.upload-icon {
+    font-size: 48px;
+    color: #007bff;
+    margin-bottom: 20px;
+}
+
+.file-info {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #e9ecef;
+    border-radius: 5px;
+    display: none;
+}
+
+.progress-container {
+    margin-top: 20px;
+    display: none;
+}
+
+.import-result {
+    margin-top: 20px;
+    display: none;
+}
+
+.error-list {
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 5px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.template-section {
+    background-color: #e3f2fd;
+    padding: 20px;
+    border-radius: 5px;
+    margin-bottom: 30px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h2><i class="fas fa-file-upload mr-2"></i>Excel图书导入</h2>
+            <a href="{% url 'books:book_list' %}" class="btn btn-light btn-sm">
+                <i class="fas fa-arrow-left mr-1"></i>返回图书列表
+            </a>
+        </div>
+
+        <div class="card-body">
+            <!-- 模板下载区域 -->
+            <div class="template-section">
+                <h5><i class="fas fa-file-download mr-2 text-primary"></i>导入模板</h5>
+                <p class="mb-3">请先下载Excel模板，按照模板格式填写图书信息后再上传。</p>
+                <a href="{% url 'books:download_import_template' %}" class="btn btn-info">
+                    <i class="fas fa-download mr-2"></i>下载导入模板
+                </a>
+            </div>
+
+            <!-- 文件上传区域 -->
+            <form id="importForm" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <h5>拖拽Excel文件到这里</h5>
+                    <p class="text-muted">或者点击选择文件</p>
+                    <p class="text-muted small">支持 .xlsx 和 .xls 格式，最大10MB</p>
+                    <input type="file" id="excelFile" name="excel_file" class="d-none" accept=".xlsx,.xls">
+                </div>
+
+                <div class="file-info" id="fileInfo">
+                    <h6><i class="fas fa-file-excel mr-2 text-success"></i>已选择文件:</h6>
+                    <div id="fileName"></div>
+                    <div id="fileSize"></div>
+                    <button type="button" id="removeFile" class="btn btn-sm btn-danger mt-2">
+                        <i class="fas fa-trash mr-1"></i>移除文件
+                    </button>
+                </div>
+
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar" style="width: 0%" id="progressBar">
+                            0%
+                        </div>
+                    </div>
+                    <p class="text-center mt-2 mb-0">正在导入，请稍候...</p>
+                </div>
+
+                <div class="import-result" id="importResult">
+                    <!-- 导入结果将在这里显示 -->
+                </div>
+
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg" id="importBtn" disabled>
+                        <i class="fas fa-upload mr-2"></i>开始导入
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 使用说明 -->
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header bg-info text-white">
+            <h5><i class="fas fa-info-circle mr-2"></i>使用说明</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6><i class="fas fa-check text-success mr-2"></i>必填字段</h6>
+                    <ul>
+                        <li><strong>书名</strong>: 图书的完整名称</li>
+                        <li><strong>作者</strong>: 图书作者姓名</li>
+                        <li><strong>ISBN</strong>: 唯一的图书编号</li>
+                        <li><strong>总册数</strong>: 图书总数量（正整数）</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6><i class="fas fa-cog text-primary mr-2"></i>可选字段</h6>
+                    <ul>
+                        <li><strong>出版社</strong>: 图书出版社名称</li>
+                        <li><strong>出版日期</strong>: 格式: YYYY-MM-DD</li>
+                        <li><strong>分类</strong>: 图书分类，不存在会自动创建</li>
+                        <li><strong>可借册数</strong>: 可借阅的册数，默认等于总册数</li>
+                        <li><strong>书架位置</strong>: 图书存放位置</li>
+                        <li><strong>状态</strong>: 可借阅/已借出/维护中/丢失</li>
+                        <li><strong>描述</strong>: 图书描述信息</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="alert alert-warning mt-3">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                <strong>注意：</strong>
+                <ul class="mb-0 mt-2">
+                    <li>ISBN必须唯一，重复的ISBN会被跳过</li>
+                    <li>导入前请确保数据格式正确</li>
+                    <li>建议先下载数据模板进行参考</li>
+                    <li>导入成功后会自动清除相关缓存</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    const uploadArea = $('#uploadArea');
+    const fileInput = $('#excelFile');
+    const fileInfo = $('#fileInfo');
+    const importForm = $('#importForm');
+    const importBtn = $('#importBtn');
+    const progressContainer = $('#progressContainer');
+    const importResult = $('#importResult');
+
+    // 点击上传区域
+    uploadArea.on('click', function() {
+        fileInput.click();
+    });
+
+    // 拖拽功能
+    uploadArea.on('dragover', function(e) {
+        e.preventDefault();
+        uploadArea.addClass('dragover');
+    });
+
+    uploadArea.on('dragleave', function(e) {
+        e.preventDefault();
+        uploadArea.removeClass('dragover');
+    });
+
+    uploadArea.on('drop', function(e) {
+        e.preventDefault();
+        uploadArea.removeClass('dragover');
+
+        const files = e.originalEvent.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput[0].files = files;
+            handleFileSelect();
+        }
+    });
+
+    // 文件选择
+    fileInput.on('change', handleFileSelect);
+
+    function handleFileSelect() {
+        const file = fileInput[0].files[0];
+        if (file) {
+            // 验证文件类型
+            const validTypes = ['.xlsx', '.xls'];
+            const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+
+            if (!validTypes.includes(fileExtension)) {
+                alert('请选择Excel文件（.xlsx或.xls格式）');
+                resetFile();
+                return;
+            }
+
+            // 验证文件大小
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            if (file.size > maxSize) {
+                alert('文件大小不能超过10MB');
+                resetFile();
+                return;
+            }
+
+            // 显示文件信息
+            $('#fileName').html(`<strong>文件名:</strong> ${file.name}`);
+            $('#fileSize').html(`<strong>文件大小:</strong> ${(file.size / 1024).toFixed(2)} KB`);
+            fileInfo.show();
+            importBtn.prop('disabled', false);
+        }
+    }
+
+    // 移除文件
+    $('#removeFile').on('click', resetFile);
+
+    function resetFile() {
+        fileInput.val('');
+        fileInfo.hide();
+        importBtn.prop('disabled', true);
+        progressContainer.hide();
+        importResult.hide();
+    }
+
+    // 表单提交
+    importForm.on('submit', function(e) {
+        e.preventDefault();
+
+        const formData = new FormData();
+        formData.append('excel_file', fileInput[0].files[0]);
+        formData.append('csrfmiddlewaretoken', $('[name=csrfmiddlewaretoken]').val());
+
+        // 显示进度条
+        progressContainer.show();
+        importResult.hide();
+        importBtn.prop('disabled', true);
+
+        // 模拟进度条
+        let progress = 0;
+        const progressInterval = setInterval(function() {
+            progress += 10;
+            if (progress > 90) {
+                clearInterval(progressInterval);
+            }
+            $('#progressBar').css('width', progress + '%').text(progress + '%');
+        }, 200);
+
+        // 获取CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+
+        // 发送请求
+        $.ajax({
+            url: '{% url "books:import_books_excel" %}',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            beforeSend: function(xhr, settings) {
+                if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
+                    xhr.setRequestHeader("X-CSRFToken", csrftoken);
+                }
+            },
+            success: function(response) {
+                clearInterval(progressInterval);
+                $('#progressBar').css('width', '100%').text('100%');
+
+                setTimeout(function() {
+                    progressContainer.hide();
+                    showImportResult(response);
+                }, 500);
+            },
+            error: function(xhr) {
+                clearInterval(progressInterval);
+                progressContainer.hide();
+
+                let response;
+                try {
+                    response = JSON.parse(xhr.responseText);
+                } catch (e) {
+                    response = {
+                        success: false,
+                        message: '服务器错误，请稍后重试'
+                    };
+                }
+
+                showImportResult(response);
+            }
+        });
+    });
+
+    function showImportResult(response) {
+        let resultHtml = '';
+
+        if (response.success) {
+            resultHtml = `
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-check-circle mr-2"></i>导入成功！</h5>
+                    <p>${response.message}</p>
+                    ${response.imported_count > 0 ? `
+                    <div class="mt-3">
+                        <a href="{% url 'books:book_list' %}" class="btn btn-success">
+                            <i class="fas fa-list mr-2"></i>查看图书列表
+                        </a>
+                        <button type="button" class="btn btn-secondary ml-2" onclick="resetFile()">
+                            <i class="fas fa-plus mr-2"></i>继续导入
+                        </button>
+                    </div>` : ''}
+                </div>
+            `;
+        } else {
+            resultHtml = `
+                <div class="alert alert-danger">
+                    <h5><i class="fas fa-exclamation-circle mr-2"></i>导入失败</h5>
+                    <p>${response.message}</p>
+                </div>
+            `;
+        }
+
+        // 显示错误详情
+        if (response.errors && response.errors.length > 0) {
+            resultHtml += `
+                <div class="error-list">
+                    <h6><i class="fas fa-bug mr-2"></i>错误详情:</h6>
+                    <ul class="mb-0">
+                        ${response.errors.map(error => `<li>${error}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        importResult.html(resultHtml).show();
+        importBtn.prop('disabled', false);
+    }
+});
+</script>
+{% endblock %}

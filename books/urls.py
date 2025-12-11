@@ -13,4 +13,7 @@ urlpatterns = [
     path('<int:book_id>/delete/', views.book_delete, name='book_delete'),
     path('export/', views.export_books, name='export_books'),  # 添加导出功能URL
     path('export/statistics/', views.export_statistics, name='export_statistics'),  # 添加统计导出功能URL
+    path('import/', views.import_books, name='import_books'),  # 添加导入页面URL
+    path('import/excel/', views.import_books_excel, name='import_books_excel'),  # 添加导入处理URL
+    path('import/template/', views.download_import_template, name='download_import_template'),  # 添加下载模板URL
 ]

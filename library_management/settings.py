@@ -114,3 +114,9 @@ DEFAULT_FROM_EMAIL = '3622075226@qq.com'  # 默认发件人邮箱
 CACHE_DEFAULT_TIMEOUT = 300  # 默认5分钟
 CACHE_LONG_TIMEOUT = 1800  # 30分钟，用于相对稳定的数据
 CACHE_SHORT_TIMEOUT = 60  # 1分钟，用于频繁变化的数据
+
+# CSRF配置
+CSRF_TRUSTED_ORIGINS = [
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+]

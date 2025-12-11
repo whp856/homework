@@ -1,8 +1,11 @@
 import pandas as pd
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from datetime import datetime
 import io
+from django.core.exceptions import ValidationError
+from books.models import Book, Category
+from accounts.models import CustomUser
 
 class ExcelExporter:
     """Excel导出工具类"""
@@ -73,6 +76,224 @@ class ExcelExporter:
 
         return response
 
+
+class ExcelImporter:
+    """Excel导入工具类"""
+
+    @staticmethod
+    def import_books_from_excel(excel_file):
+        """
+        从Excel文件导入图书数据
+        返回格式: {'success': bool, 'message': str, 'imported_count': int, 'errors': list}
+        """
+        try:
+            # 读取Excel文件
+            df = pd.read_excel(excel_file, sheet_name=0)
+
+            # 验证必需的列
+            required_columns = ['书名', '作者', 'ISBN', '总册数']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+
+            if missing_columns:
+                return {
+                    'success': False,
+                    'message': f'Excel文件缺少必需的列: {", ".join(missing_columns)}',
+                    'imported_count': 0,
+                    'errors': [f'缺少必需列: {col}' for col in missing_columns]
+                }
+
+            imported_count = 0
+            errors = []
+            skipped_count = 0
+
+            # 逐行处理数据
+            for index, row in df.iterrows():
+                try:
+                    # 获取基本信息
+                    title = str(row['书名']).strip()
+                    author = str(row['作者']).strip()
+                    isbn = str(row['ISBN']).strip()
+
+                    # 验证必填字段
+                    if not title or title == 'nan':
+                        errors.append(f'第{index+2}行: 书名不能为空')
+                        continue
+
+                    if not author or author == 'nan':
+                        errors.append(f'第{index+2}行: 作者不能为空')
+                        continue
+
+                    if not isbn or isbn == 'nan':
+                        errors.append(f'第{index+2}行: ISBN不能为空')
+                        continue
+
+                    # 检查ISBN是否已存在
+                    if Book.objects.filter(isbn=isbn).exists():
+                        skipped_count += 1
+                        continue
+
+                    # 获取可选字段
+                    publisher = str(row.get('出版社', '')).strip() if pd.notna(row.get('出版社')) else ''
+                    publication_date = None
+                    if '出版日期' in row and pd.notna(row['出版日期']):
+                        try:
+                            publication_date = pd.to_datetime(row['出版日期']).date()
+                        except:
+                            pass
+
+                    # 处理分类
+                    category = None
+                    if '分类' in row and pd.notna(row['分类']):
+                        category_name = str(row['分类']).strip()
+                        if category_name and category_name != 'nan':
+                            category, created = Category.objects.get_or_create(
+                                name=category_name,
+                                defaults={'description': f'通过Excel导入创建的分类: {category_name}'}
+                            )
+
+                    # 获取数字字段
+                    total_copies = int(row.get('总册数', 1)) if pd.notna(row.get('总册数')) else 1
+                    available_copies = int(row.get('可借册数', total_copies)) if pd.notna(row.get('可借册数')) else total_copies
+
+                    # 验证册数
+                    if total_copies <= 0:
+                        errors.append(f'第{index+2}行: 总册数必须大于0')
+                        continue
+
+                    if available_copies > total_copies:
+                        available_copies = total_copies
+
+                    # 获取其他字段
+                    location = str(row.get('书架位置', '')).strip() if pd.notna(row.get('书架位置')) else ''
+                    description = str(row.get('描述', '')).strip() if pd.notna(row.get('描述')) else ''
+
+                    # 处理状态
+                    status = 'available'
+                    if '状态' in row and pd.notna(row['状态']):
+                        status_map = {
+                            '可借阅': 'available',
+                            '已借出': 'borrowed',
+                            '维护中': 'maintenance',
+                            '丢失': 'lost'
+                        }
+                        status = status_map.get(str(row['状态']).strip(), 'available')
+
+                    # 创建图书
+                    book = Book.objects.create(
+                        title=title,
+                        author=author,
+                        isbn=isbn,
+                        publisher=publisher if publisher else None,
+                        publication_date=publication_date,
+                        category=category,
+                        description=description if description else None,
+                        total_copies=total_copies,
+                        available_copies=available_copies,
+                        location=location if location else None,
+                        status=status
+                    )
+
+                    imported_count += 1
+
+                except Exception as e:
+                    errors.append(f'第{index+2}行: {str(e)}')
+                    continue
+
+            # 构建返回消息
+            message = f'成功导入 {imported_count} 本图书'
+            if skipped_count > 0:
+                message += f'，跳过 {skipped_count} 本重复ISBN的图书'
+            if errors:
+                message += f'，{len(errors)} 个错误'
+
+            return {
+                'success': True,
+                'message': message,
+                'imported_count': imported_count,
+                'skipped_count': skipped_count,
+                'errors': errors
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f'文件处理失败: {str(e)}',
+                'imported_count': 0,
+                'errors': [f'文件处理失败: {str(e)}']
+            }
+
+    @staticmethod
+    def get_import_template():
+        """
+        生成图书导入模板
+        """
+        # 创建模板数据
+        template_data = [
+            {
+                '书名': '示例图书1',
+                '作者': '作者姓名',
+                'ISBN': '9787000000001',
+                '出版社': '出版社名称',
+                '出版日期': '2023-01-01',
+                '分类': '文学',
+                '总册数': 5,
+                '可借册数': 5,
+                '书架位置': 'A1-001',
+                '状态': '可借阅',
+                '描述': '图书描述信息'
+            },
+            {
+                '书名': '示例图书2',
+                '作者': '作者姓名',
+                'ISBN': '9787000000002',
+                '出版社': '出版社名称',
+                '出版日期': '2023-01-01',
+                '分类': '科技',
+                '总册数': 3,
+                '可借册数': 3,
+                '书架位置': 'B2-005',
+                '状态': '可借阅',
+                '描述': '图书描述信息'
+            }
+        ]
+
+        # 创建DataFrame
+        df = pd.DataFrame(template_data)
+
+        # 创建Excel文件
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='图书导入模板', index=False)
+
+            # 设置列宽
+            worksheet = writer.sheets['图书导入模板']
+            column_widths = {
+                'A': 20,  # 书名
+                'B': 15,  # 作者
+                'C': 20,  # ISBN
+                'D': 20,  # 出版社
+                'E': 15,  # 出版日期
+                'F': 15,  # 分类
+                'G': 10,  # 总册数
+                'H': 10,  # 可借册数
+                'I': 15,  # 书架位置
+                'J': 10,  # 状态
+                'K': 30,  # 描述
+            }
+
+            for col, width in column_widths.items():
+                worksheet.column_dimensions[col].width = width
+
+        # 创建HTTP响应
+        output.seek(0)
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename=图书导入模板.xlsx'
+
+        return response
+
     @staticmethod
     def export_users(users, filename=None):
         """导出用户数据到Excel"""
@@ -128,6 +349,224 @@ class ExcelExporter:
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
         response['Content-Disposition'] = f'attachment; filename={filename}'
+
+        return response
+
+
+class ExcelImporter:
+    """Excel导入工具类"""
+
+    @staticmethod
+    def import_books_from_excel(excel_file):
+        """
+        从Excel文件导入图书数据
+        返回格式: {'success': bool, 'message': str, 'imported_count': int, 'errors': list}
+        """
+        try:
+            # 读取Excel文件
+            df = pd.read_excel(excel_file, sheet_name=0)
+
+            # 验证必需的列
+            required_columns = ['书名', '作者', 'ISBN', '总册数']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+
+            if missing_columns:
+                return {
+                    'success': False,
+                    'message': f'Excel文件缺少必需的列: {", ".join(missing_columns)}',
+                    'imported_count': 0,
+                    'errors': [f'缺少必需列: {col}' for col in missing_columns]
+                }
+
+            imported_count = 0
+            errors = []
+            skipped_count = 0
+
+            # 逐行处理数据
+            for index, row in df.iterrows():
+                try:
+                    # 获取基本信息
+                    title = str(row['书名']).strip()
+                    author = str(row['作者']).strip()
+                    isbn = str(row['ISBN']).strip()
+
+                    # 验证必填字段
+                    if not title or title == 'nan':
+                        errors.append(f'第{index+2}行: 书名不能为空')
+                        continue
+
+                    if not author or author == 'nan':
+                        errors.append(f'第{index+2}行: 作者不能为空')
+                        continue
+
+                    if not isbn or isbn == 'nan':
+                        errors.append(f'第{index+2}行: ISBN不能为空')
+                        continue
+
+                    # 检查ISBN是否已存在
+                    if Book.objects.filter(isbn=isbn).exists():
+                        skipped_count += 1
+                        continue
+
+                    # 获取可选字段
+                    publisher = str(row.get('出版社', '')).strip() if pd.notna(row.get('出版社')) else ''
+                    publication_date = None
+                    if '出版日期' in row and pd.notna(row['出版日期']):
+                        try:
+                            publication_date = pd.to_datetime(row['出版日期']).date()
+                        except:
+                            pass
+
+                    # 处理分类
+                    category = None
+                    if '分类' in row and pd.notna(row['分类']):
+                        category_name = str(row['分类']).strip()
+                        if category_name and category_name != 'nan':
+                            category, created = Category.objects.get_or_create(
+                                name=category_name,
+                                defaults={'description': f'通过Excel导入创建的分类: {category_name}'}
+                            )
+
+                    # 获取数字字段
+                    total_copies = int(row.get('总册数', 1)) if pd.notna(row.get('总册数')) else 1
+                    available_copies = int(row.get('可借册数', total_copies)) if pd.notna(row.get('可借册数')) else total_copies
+
+                    # 验证册数
+                    if total_copies <= 0:
+                        errors.append(f'第{index+2}行: 总册数必须大于0')
+                        continue
+
+                    if available_copies > total_copies:
+                        available_copies = total_copies
+
+                    # 获取其他字段
+                    location = str(row.get('书架位置', '')).strip() if pd.notna(row.get('书架位置')) else ''
+                    description = str(row.get('描述', '')).strip() if pd.notna(row.get('描述')) else ''
+
+                    # 处理状态
+                    status = 'available'
+                    if '状态' in row and pd.notna(row['状态']):
+                        status_map = {
+                            '可借阅': 'available',
+                            '已借出': 'borrowed',
+                            '维护中': 'maintenance',
+                            '丢失': 'lost'
+                        }
+                        status = status_map.get(str(row['状态']).strip(), 'available')
+
+                    # 创建图书
+                    book = Book.objects.create(
+                        title=title,
+                        author=author,
+                        isbn=isbn,
+                        publisher=publisher if publisher else None,
+                        publication_date=publication_date,
+                        category=category,
+                        description=description if description else None,
+                        total_copies=total_copies,
+                        available_copies=available_copies,
+                        location=location if location else None,
+                        status=status
+                    )
+
+                    imported_count += 1
+
+                except Exception as e:
+                    errors.append(f'第{index+2}行: {str(e)}')
+                    continue
+
+            # 构建返回消息
+            message = f'成功导入 {imported_count} 本图书'
+            if skipped_count > 0:
+                message += f'，跳过 {skipped_count} 本重复ISBN的图书'
+            if errors:
+                message += f'，{len(errors)} 个错误'
+
+            return {
+                'success': True,
+                'message': message,
+                'imported_count': imported_count,
+                'skipped_count': skipped_count,
+                'errors': errors
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f'文件处理失败: {str(e)}',
+                'imported_count': 0,
+                'errors': [f'文件处理失败: {str(e)}']
+            }
+
+    @staticmethod
+    def get_import_template():
+        """
+        生成图书导入模板
+        """
+        # 创建模板数据
+        template_data = [
+            {
+                '书名': '示例图书1',
+                '作者': '作者姓名',
+                'ISBN': '9787000000001',
+                '出版社': '出版社名称',
+                '出版日期': '2023-01-01',
+                '分类': '文学',
+                '总册数': 5,
+                '可借册数': 5,
+                '书架位置': 'A1-001',
+                '状态': '可借阅',
+                '描述': '图书描述信息'
+            },
+            {
+                '书名': '示例图书2',
+                '作者': '作者姓名',
+                'ISBN': '9787000000002',
+                '出版社': '出版社名称',
+                '出版日期': '2023-01-01',
+                '分类': '科技',
+                '总册数': 3,
+                '可借册数': 3,
+                '书架位置': 'B2-005',
+                '状态': '可借阅',
+                '描述': '图书描述信息'
+            }
+        ]
+
+        # 创建DataFrame
+        df = pd.DataFrame(template_data)
+
+        # 创建Excel文件
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='图书导入模板', index=False)
+
+            # 设置列宽
+            worksheet = writer.sheets['图书导入模板']
+            column_widths = {
+                'A': 20,  # 书名
+                'B': 15,  # 作者
+                'C': 20,  # ISBN
+                'D': 20,  # 出版社
+                'E': 15,  # 出版日期
+                'F': 15,  # 分类
+                'G': 10,  # 总册数
+                'H': 10,  # 可借册数
+                'I': 15,  # 书架位置
+                'J': 10,  # 状态
+                'K': 30,  # 描述
+            }
+
+            for col, width in column_widths.items():
+                worksheet.column_dimensions[col].width = width
+
+        # 创建HTTP响应
+        output.seek(0)
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename=图书导入模板.xlsx'
 
         return response
 
@@ -195,6 +634,224 @@ class ExcelExporter:
 
         return response
 
+
+class ExcelImporter:
+    """Excel导入工具类"""
+
+    @staticmethod
+    def import_books_from_excel(excel_file):
+        """
+        从Excel文件导入图书数据
+        返回格式: {'success': bool, 'message': str, 'imported_count': int, 'errors': list}
+        """
+        try:
+            # 读取Excel文件
+            df = pd.read_excel(excel_file, sheet_name=0)
+
+            # 验证必需的列
+            required_columns = ['书名', '作者', 'ISBN', '总册数']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+
+            if missing_columns:
+                return {
+                    'success': False,
+                    'message': f'Excel文件缺少必需的列: {", ".join(missing_columns)}',
+                    'imported_count': 0,
+                    'errors': [f'缺少必需列: {col}' for col in missing_columns]
+                }
+
+            imported_count = 0
+            errors = []
+            skipped_count = 0
+
+            # 逐行处理数据
+            for index, row in df.iterrows():
+                try:
+                    # 获取基本信息
+                    title = str(row['书名']).strip()
+                    author = str(row['作者']).strip()
+                    isbn = str(row['ISBN']).strip()
+
+                    # 验证必填字段
+                    if not title or title == 'nan':
+                        errors.append(f'第{index+2}行: 书名不能为空')
+                        continue
+
+                    if not author or author == 'nan':
+                        errors.append(f'第{index+2}行: 作者不能为空')
+                        continue
+
+                    if not isbn or isbn == 'nan':
+                        errors.append(f'第{index+2}行: ISBN不能为空')
+                        continue
+
+                    # 检查ISBN是否已存在
+                    if Book.objects.filter(isbn=isbn).exists():
+                        skipped_count += 1
+                        continue
+
+                    # 获取可选字段
+                    publisher = str(row.get('出版社', '')).strip() if pd.notna(row.get('出版社')) else ''
+                    publication_date = None
+                    if '出版日期' in row and pd.notna(row['出版日期']):
+                        try:
+                            publication_date = pd.to_datetime(row['出版日期']).date()
+                        except:
+                            pass
+
+                    # 处理分类
+                    category = None
+                    if '分类' in row and pd.notna(row['分类']):
+                        category_name = str(row['分类']).strip()
+                        if category_name and category_name != 'nan':
+                            category, created = Category.objects.get_or_create(
+                                name=category_name,
+                                defaults={'description': f'通过Excel导入创建的分类: {category_name}'}
+                            )
+
+                    # 获取数字字段
+                    total_copies = int(row.get('总册数', 1)) if pd.notna(row.get('总册数')) else 1
+                    available_copies = int(row.get('可借册数', total_copies)) if pd.notna(row.get('可借册数')) else total_copies
+
+                    # 验证册数
+                    if total_copies <= 0:
+                        errors.append(f'第{index+2}行: 总册数必须大于0')
+                        continue
+
+                    if available_copies > total_copies:
+                        available_copies = total_copies
+
+                    # 获取其他字段
+                    location = str(row.get('书架位置', '')).strip() if pd.notna(row.get('书架位置')) else ''
+                    description = str(row.get('描述', '')).strip() if pd.notna(row.get('描述')) else ''
+
+                    # 处理状态
+                    status = 'available'
+                    if '状态' in row and pd.notna(row['状态']):
+                        status_map = {
+                            '可借阅': 'available',
+                            '已借出': 'borrowed',
+                            '维护中': 'maintenance',
+                            '丢失': 'lost'
+                        }
+                        status = status_map.get(str(row['状态']).strip(), 'available')
+
+                    # 创建图书
+                    book = Book.objects.create(
+                        title=title,
+                        author=author,
+                        isbn=isbn,
+                        publisher=publisher if publisher else None,
+                        publication_date=publication_date,
+                        category=category,
+                        description=description if description else None,
+                        total_copies=total_copies,
+                        available_copies=available_copies,
+                        location=location if location else None,
+                        status=status
+                    )
+
+                    imported_count += 1
+
+                except Exception as e:
+                    errors.append(f'第{index+2}行: {str(e)}')
+                    continue
+
+            # 构建返回消息
+            message = f'成功导入 {imported_count} 本图书'
+            if skipped_count > 0:
+                message += f'，跳过 {skipped_count} 本重复ISBN的图书'
+            if errors:
+                message += f'，{len(errors)} 个错误'
+
+            return {
+                'success': True,
+                'message': message,
+                'imported_count': imported_count,
+                'skipped_count': skipped_count,
+                'errors': errors
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f'文件处理失败: {str(e)}',
+                'imported_count': 0,
+                'errors': [f'文件处理失败: {str(e)}']
+            }
+
+    @staticmethod
+    def get_import_template():
+        """
+        生成图书导入模板
+        """
+        # 创建模板数据
+        template_data = [
+            {
+                '书名': '示例图书1',
+                '作者': '作者姓名',
+                'ISBN': '9787000000001',
+                '出版社': '出版社名称',
+                '出版日期': '2023-01-01',
+                '分类': '文学',
+                '总册数': 5,
+                '可借册数': 5,
+                '书架位置': 'A1-001',
+                '状态': '可借阅',
+                '描述': '图书描述信息'
+            },
+            {
+                '书名': '示例图书2',
+                '作者': '作者姓名',
+                'ISBN': '9787000000002',
+                '出版社': '出版社名称',
+                '出版日期': '2023-01-01',
+                '分类': '科技',
+                '总册数': 3,
+                '可借册数': 3,
+                '书架位置': 'B2-005',
+                '状态': '可借阅',
+                '描述': '图书描述信息'
+            }
+        ]
+
+        # 创建DataFrame
+        df = pd.DataFrame(template_data)
+
+        # 创建Excel文件
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='图书导入模板', index=False)
+
+            # 设置列宽
+            worksheet = writer.sheets['图书导入模板']
+            column_widths = {
+                'A': 20,  # 书名
+                'B': 15,  # 作者
+                'C': 20,  # ISBN
+                'D': 20,  # 出版社
+                'E': 15,  # 出版日期
+                'F': 15,  # 分类
+                'G': 10,  # 总册数
+                'H': 10,  # 可借册数
+                'I': 15,  # 书架位置
+                'J': 10,  # 状态
+                'K': 30,  # 描述
+            }
+
+            for col, width in column_widths.items():
+                worksheet.column_dimensions[col].width = width
+
+        # 创建HTTP响应
+        output.seek(0)
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename=图书导入模板.xlsx'
+
+        return response
+
     @staticmethod
     def export_statistics(stats_data, filename=None):
         """导出统计数据到Excel"""
@@ -255,5 +912,223 @@ class ExcelExporter:
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
         response['Content-Disposition'] = f'attachment; filename={filename}'
+
+        return response
+
+
+class ExcelImporter:
+    """Excel导入工具类"""
+
+    @staticmethod
+    def import_books_from_excel(excel_file):
+        """
+        从Excel文件导入图书数据
+        返回格式: {'success': bool, 'message': str, 'imported_count': int, 'errors': list}
+        """
+        try:
+            # 读取Excel文件
+            df = pd.read_excel(excel_file, sheet_name=0)
+
+            # 验证必需的列
+            required_columns = ['书名', '作者', 'ISBN', '总册数']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+
+            if missing_columns:
+                return {
+                    'success': False,
+                    'message': f'Excel文件缺少必需的列: {", ".join(missing_columns)}',
+                    'imported_count': 0,
+                    'errors': [f'缺少必需列: {col}' for col in missing_columns]
+                }
+
+            imported_count = 0
+            errors = []
+            skipped_count = 0
+
+            # 逐行处理数据
+            for index, row in df.iterrows():
+                try:
+                    # 获取基本信息
+                    title = str(row['书名']).strip()
+                    author = str(row['作者']).strip()
+                    isbn = str(row['ISBN']).strip()
+
+                    # 验证必填字段
+                    if not title or title == 'nan':
+                        errors.append(f'第{index+2}行: 书名不能为空')
+                        continue
+
+                    if not author or author == 'nan':
+                        errors.append(f'第{index+2}行: 作者不能为空')
+                        continue
+
+                    if not isbn or isbn == 'nan':
+                        errors.append(f'第{index+2}行: ISBN不能为空')
+                        continue
+
+                    # 检查ISBN是否已存在
+                    if Book.objects.filter(isbn=isbn).exists():
+                        skipped_count += 1
+                        continue
+
+                    # 获取可选字段
+                    publisher = str(row.get('出版社', '')).strip() if pd.notna(row.get('出版社')) else ''
+                    publication_date = None
+                    if '出版日期' in row and pd.notna(row['出版日期']):
+                        try:
+                            publication_date = pd.to_datetime(row['出版日期']).date()
+                        except:
+                            pass
+
+                    # 处理分类
+                    category = None
+                    if '分类' in row and pd.notna(row['分类']):
+                        category_name = str(row['分类']).strip()
+                        if category_name and category_name != 'nan':
+                            category, created = Category.objects.get_or_create(
+                                name=category_name,
+                                defaults={'description': f'通过Excel导入创建的分类: {category_name}'}
+                            )
+
+                    # 获取数字字段
+                    total_copies = int(row.get('总册数', 1)) if pd.notna(row.get('总册数')) else 1
+                    available_copies = int(row.get('可借册数', total_copies)) if pd.notna(row.get('可借册数')) else total_copies
+
+                    # 验证册数
+                    if total_copies <= 0:
+                        errors.append(f'第{index+2}行: 总册数必须大于0')
+                        continue
+
+                    if available_copies > total_copies:
+                        available_copies = total_copies
+
+                    # 获取其他字段
+                    location = str(row.get('书架位置', '')).strip() if pd.notna(row.get('书架位置')) else ''
+                    description = str(row.get('描述', '')).strip() if pd.notna(row.get('描述')) else ''
+
+                    # 处理状态
+                    status = 'available'
+                    if '状态' in row and pd.notna(row['状态']):
+                        status_map = {
+                            '可借阅': 'available',
+                            '已借出': 'borrowed',
+                            '维护中': 'maintenance',
+                            '丢失': 'lost'
+                        }
+                        status = status_map.get(str(row['状态']).strip(), 'available')
+
+                    # 创建图书
+                    book = Book.objects.create(
+                        title=title,
+                        author=author,
+                        isbn=isbn,
+                        publisher=publisher if publisher else None,
+                        publication_date=publication_date,
+                        category=category,
+                        description=description if description else None,
+                        total_copies=total_copies,
+                        available_copies=available_copies,
+                        location=location if location else None,
+                        status=status
+                    )
+
+                    imported_count += 1
+
+                except Exception as e:
+                    errors.append(f'第{index+2}行: {str(e)}')
+                    continue
+
+            # 构建返回消息
+            message = f'成功导入 {imported_count} 本图书'
+            if skipped_count > 0:
+                message += f'，跳过 {skipped_count} 本重复ISBN的图书'
+            if errors:
+                message += f'，{len(errors)} 个错误'
+
+            return {
+                'success': True,
+                'message': message,
+                'imported_count': imported_count,
+                'skipped_count': skipped_count,
+                'errors': errors
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f'文件处理失败: {str(e)}',
+                'imported_count': 0,
+                'errors': [f'文件处理失败: {str(e)}']
+            }
+
+    @staticmethod
+    def get_import_template():
+        """
+        生成图书导入模板
+        """
+        # 创建模板数据
+        template_data = [
+            {
+                '书名': '示例图书1',
+                '作者': '作者姓名',
+                'ISBN': '9787000000001',
+                '出版社': '出版社名称',
+                '出版日期': '2023-01-01',
+                '分类': '文学',
+                '总册数': 5,
+                '可借册数': 5,
+                '书架位置': 'A1-001',
+                '状态': '可借阅',
+                '描述': '图书描述信息'
+            },
+            {
+                '书名': '示例图书2',
+                '作者': '作者姓名',
+                'ISBN': '9787000000002',
+                '出版社': '出版社名称',
+                '出版日期': '2023-01-01',
+                '分类': '科技',
+                '总册数': 3,
+                '可借册数': 3,
+                '书架位置': 'B2-005',
+                '状态': '可借阅',
+                '描述': '图书描述信息'
+            }
+        ]
+
+        # 创建DataFrame
+        df = pd.DataFrame(template_data)
+
+        # 创建Excel文件
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='图书导入模板', index=False)
+
+            # 设置列宽
+            worksheet = writer.sheets['图书导入模板']
+            column_widths = {
+                'A': 20,  # 书名
+                'B': 15,  # 作者
+                'C': 20,  # ISBN
+                'D': 20,  # 出版社
+                'E': 15,  # 出版日期
+                'F': 15,  # 分类
+                'G': 10,  # 总册数
+                'H': 10,  # 可借册数
+                'I': 15,  # 书架位置
+                'J': 10,  # 状态
+                'K': 30,  # 描述
+            }
+
+            for col, width in column_widths.items():
+                worksheet.column_dimensions[col].width = width
+
+        # 创建HTTP响应
+        output.seek(0)
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename=图书导入模板.xlsx'
 
         return response
